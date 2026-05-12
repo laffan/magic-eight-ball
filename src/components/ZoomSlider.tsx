@@ -2,6 +2,7 @@ import { ZOOM_STOPS, useStore } from "../state/store";
 import type { MonthsVisible } from "../state/store";
 
 const LABELS: Record<MonthsVisible, string> = {
+  36: "3y",
   12: "1y",
   6: "6m",
   3: "3m",

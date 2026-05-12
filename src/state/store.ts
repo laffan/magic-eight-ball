@@ -20,7 +20,7 @@ export const STACK_PAD_BOTTOM = 6;
 // for short labels and shifts long ones down without measuring DOM.
 export const LABEL_RESERVATION = 80;
 
-export const ZOOM_STOPS = [12, 6, 3, 1] as const;
+export const ZOOM_STOPS = [36, 12, 6, 3, 1] as const;
 export type MonthsVisible = (typeof ZOOM_STOPS)[number];
 
 type ExportedSnapshot = {
@@ -97,7 +97,7 @@ export const useStore = create<Store>()(
       selectedId: null,
       inspectorOpen: true,
 
-      monthsVisible: 12,
+      monthsVisible: 36,
       monthWidth: MONTH_WIDTH_DEFAULT,
 
       setSelected: (id) => set({ selectedId: id }),
