@@ -49,6 +49,18 @@ export default function Canvas() {
 
   const [draft, setDraft] = useState<Draft | null>(null);
   const [cursor, setCursor] = useState<Cursor>(null);
+  const [hoverSpanId, setHoverSpanId] = useState<string | null>(null);
+  const [dragSpanId, setDragSpanId] = useState<string | null>(null);
+
+  const onLayerHoverChange = useCallback((id: string, hovered: boolean) => {
+    if (hovered) setHoverSpanId(id);
+    else setHoverSpanId((cur) => (cur === id ? null : cur));
+  }, []);
+
+  const onLayerDragChange = useCallback((id: string, isDragging: boolean) => {
+    if (isDragging) setDragSpanId(id);
+    else setDragSpanId((cur) => (cur === id ? null : cur));
+  }, []);
 
   const monthsTotal = totalMonths(numYears);
   const contentWidth = monthsTotal * MONTH_WIDTH;
@@ -245,6 +257,8 @@ export default function Canvas() {
                       rowPadTop={LANE_ROW_PAD_TOP}
                       monthsTotal={monthsTotal}
                       onDragEnd={onSpanDragEnd}
+                      onHoverChange={onLayerHoverChange}
+                      onDragChange={onLayerDragChange}
                     />
                   ))}
                 </div>
@@ -281,13 +295,43 @@ export default function Canvas() {
         </div>
       </div>
 
-      {cursor && !draft && (
-        <CursorTooltip
-          x={cursor.clientX}
-          y={cursor.clientY}
-          contentX={cursor.x}
-        />
-      )}
+      {cursor &&
+        (() => {
+          // Span to show in the tooltip, in priority order:
+          //  1. existing span currently being dragged (move/resize)
+          //  2. existing span hovered by the cursor
+          //  3. the in-progress draft if the user is drawing a new span
+          let span: { startMonthIdx: number; endMonthIdx: number } | null = null;
+          const activeId = dragSpanId ?? hoverSpanId;
+          if (activeId) {
+            const l = layers.find((x) => x.id === activeId);
+            if (l) span = { startMonthIdx: l.startMonthIdx, endMonthIdx: l.endMonthIdx };
+          } else if (draft && !draft.inDatesStrip) {
+            const distance = Math.abs(draft.currentX - draft.startX);
+            if (distance >= MIN_DRAG_PX) {
+              const lo = Math.min(draft.startX, draft.currentX);
+              const hi = Math.max(draft.startX, draft.currentX);
+              span = {
+                startMonthIdx: Math.max(
+                  0,
+                  Math.min(monthsTotal - 1, Math.floor(lo / MONTH_WIDTH))
+                ),
+                endMonthIdx: Math.max(
+                  0,
+                  Math.min(monthsTotal - 1, Math.floor(hi / MONTH_WIDTH))
+                ),
+              };
+            }
+          }
+          return (
+            <CursorTooltip
+              x={cursor.clientX}
+              y={cursor.clientY}
+              contentX={cursor.x}
+              span={span}
+            />
+          );
+        })()}
 
       <AddMenu />
     </div>

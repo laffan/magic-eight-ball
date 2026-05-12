@@ -10,6 +10,8 @@ type Props = {
   rowPadTop: number;
   monthsTotal: number;
   onDragEnd?: (id: string, clientY: number) => void;
+  onHoverChange?: (id: string, hovered: boolean) => void;
+  onDragChange?: (id: string, dragging: boolean) => void;
 };
 
 type DragMode = "move" | "resize-left" | "resize-right";
@@ -21,6 +23,8 @@ export default function LayerBar({
   rowPadTop,
   monthsTotal,
   onDragEnd,
+  onHoverChange,
+  onDragChange,
 }: Props) {
   const selectedId = useStore((s) => s.selectedId);
   const setSelected = useStore((s) => s.setSelected);
@@ -43,6 +47,7 @@ export default function LayerBar({
     if (e.button !== 0) return;
     setSelected(layer.id);
     setDragging(mode);
+    onDragChange?.(layer.id, true);
     startRef.current = {
       x: e.clientX,
       start: layer.startMonthIdx,
@@ -83,6 +88,7 @@ export default function LayerBar({
 
     const onUp = (e: MouseEvent) => {
       if (dragging === "move" && onDragEnd) onDragEnd(layer.id, e.clientY);
+      onDragChange?.(layer.id, false);
       setDragging(null);
       startRef.current = null;
     };
@@ -93,7 +99,7 @@ export default function LayerBar({
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [dragging, layer.id, monthsTotal, onDragEnd, updateLayer]);
+  }, [dragging, layer.id, monthsTotal, onDragChange, onDragEnd, updateLayer]);
 
   return (
     <div
@@ -101,6 +107,8 @@ export default function LayerBar({
       className={`layer-bar ${isSelected ? "is-selected" : ""} ${dragging ? "is-dragging" : ""} ${editing ? "is-editing" : ""}`}
       style={{ left, top, width, height }}
       onMouseDown={onMouseDown("move")}
+      onMouseEnter={() => onHoverChange?.(layer.id, true)}
+      onMouseLeave={() => onHoverChange?.(layer.id, false)}
       onClick={(e) => {
         e.stopPropagation();
         setSelected(layer.id);

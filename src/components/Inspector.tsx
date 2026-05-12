@@ -6,6 +6,7 @@ import {
   useStore,
 } from "../state/store";
 import type { Item, RepeatKind } from "../types";
+import { EyeHidden, EyeVisible } from "./icons/EyeIcons";
 
 const REPEAT_OPTIONS: { value: RepeatKind; label: string }[] = [
   { value: "none", label: "Does not repeat" },
@@ -291,14 +292,19 @@ export default function Inspector() {
                 />
               </label>
 
-              <label className="field-check">
-                <input
-                  type="checkbox"
-                  checked={item.visible}
-                  onChange={(e) => updateGroup(item.id, { visible: e.target.checked })}
-                />
-                <span>Visible</span>
-              </label>
+              <div className="field-toggle">
+                <button
+                  className="icon-toggle"
+                  onClick={() => updateGroup(item.id, { visible: !item.visible })}
+                  aria-pressed={item.visible}
+                  title={item.visible ? "Visible" : "Hidden"}
+                >
+                  {item.visible ? <EyeVisible size={20} /> : <EyeHidden size={20} />}
+                </button>
+                <span className="field-toggle-label">
+                  {item.visible ? "Visible" : "Hidden"}
+                </span>
+              </div>
 
               <button className="danger-btn" onClick={() => removeItem(item.id)}>
                 Delete

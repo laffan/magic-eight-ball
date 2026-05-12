@@ -188,13 +188,50 @@ button {
   align-items: center;
   justify-content: center;
   color: var(--ink-2);
-  font-size: 12px;
   padding: 0;
   flex: 0 0 28px;
+  border-radius: 4px;
 }
 
 .sidebar-eye:hover {
   color: var(--ink);
+  background: var(--surface-2);
+}
+
+.sidebar-eye svg {
+  display: block;
+}
+
+.sidebar-edit-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--selection);
+  background: var(--surface);
+  border-radius: 3px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink);
+  padding: 1px 4px;
+  outline: none;
+}
+
+/* Drag source row dims while it's being dragged. */
+.sidebar-item.is-dragging-source {
+  opacity: 0.4;
+}
+
+/* Drop target highlight. */
+.sidebar-item.is-drop-target,
+.sidebar-row.is-drop-target,
+.sidebar-section-title.is-drop-zone[data-droptarget="true"] {
+  background: rgba(0, 0, 0, 0.05);
+  outline: 1px dashed var(--ink-2);
+  outline-offset: -2px;
+  border-radius: 3px;
+}
+
+.sidebar-section-title.is-drop-zone {
+  cursor: default;
 }
 
 .sidebar-item-main {
@@ -845,6 +882,39 @@ select.field-input {
 .field-check input[type="checkbox"] {
   margin: 0;
   cursor: pointer;
+}
+
+.field-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.icon-toggle {
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink);
+  cursor: pointer;
+  padding: 0;
+}
+
+.icon-toggle:hover {
+  border-color: var(--ink);
+}
+
+.icon-toggle[aria-pressed="false"] {
+  color: var(--ink-3);
+}
+
+.field-toggle-label {
+  font-size: 12px;
+  color: var(--ink-2);
 }
 
 .danger-btn {
