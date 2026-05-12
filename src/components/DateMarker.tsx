@@ -22,6 +22,7 @@ export default function DateMarker({ date, mode, yCenter, onDragEnd, onDragChang
   const updateDate = useStore((s) => s.updateDate);
   const startYear = useStore((s) => s.startYear);
   const numYears = useStore((s) => s.numYears);
+  const monthWidth = useStore((s) => s.monthWidth);
 
   const [editing, setEditing] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -32,7 +33,7 @@ export default function DateMarker({ date, mode, yCenter, onDragEnd, onDragChang
   } | null>(null);
 
   const isSelected = selectedId === date.id;
-  const occurrences = generateDateOccurrences(date, startYear, numYears);
+  const occurrences = generateDateOccurrences(date, startYear, numYears, monthWidth);
 
   const commit = (next: string) => {
     const trimmed = next.trim();
@@ -64,10 +65,11 @@ export default function DateMarker({ date, mode, yCenter, onDragEnd, onDragChang
       const baseX = dateToX(
         dragStartRef.current.monthIdx,
         dragStartRef.current.day,
-        startYear
+        startYear,
+        monthWidth
       );
       const newX = Math.max(0, baseX + (e.clientX - dragStartRef.current.clientX));
-      const parts = xToDateParts(newX, startYear);
+      const parts = xToDateParts(newX, startYear, monthWidth);
       updateDate(date.id, { monthIdx: parts.monthIdx, dayOfMonth: parts.day });
     };
     const onUp = (e: MouseEvent) => {
@@ -84,7 +86,7 @@ export default function DateMarker({ date, mode, yCenter, onDragEnd, onDragChang
       window.removeEventListener("mouseup", onUp);
       document.body.style.userSelect = prevUserSelect;
     };
-  }, [dragging, date.id, onDragChange, onDragEnd, startYear, updateDate]);
+  }, [dragging, date.id, monthWidth, onDragChange, onDragEnd, startYear, updateDate]);
 
   if (mode === "line") {
     return (
@@ -176,4 +178,3 @@ export default function DateMarker({ date, mode, yCenter, onDragEnd, onDragChang
     </>
   );
 }
-

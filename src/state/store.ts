@@ -2,16 +2,26 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { DateMark, Group, Layer, Person, RepeatKind } from "../types";
 
-export const MONTH_WIDTH = 30;
+export const MONTH_WIDTH_DEFAULT = 30;
 export const MONTHS_PER_YEAR = 12;
-export const YEAR_WIDTH = MONTH_WIDTH * MONTHS_PER_YEAR;
 
 export const HEADER_HEIGHT = 64;
-export const LANE_DATES_STRIP_HEIGHT = 36;
+export const LANE_DATES_MIN_HEIGHT = 36;
 export const LANE_ROW_HEIGHT = 36;
 export const LANE_ROW_PAD_TOP = 12;
 export const LANE_MIN_SPAN_ROWS = 1;
 export const LANE_BOTTOM_PAD = 6;
+
+// Stacked-dot constants (used when dates need to stack vertically to avoid overlap).
+export const STACK_ROW_HEIGHT = 24;
+export const STACK_PAD_TOP = 6;
+export const STACK_PAD_BOTTOM = 6;
+// Approximate width reserved per labeled dot when deciding overlap. Conservative — works
+// for short labels and shifts long ones down without measuring DOM.
+export const LABEL_RESERVATION = 80;
+
+export const ZOOM_STOPS = [12, 6, 3, 1] as const;
+export type MonthsVisible = (typeof ZOOM_STOPS)[number];
 
 type ExportedSnapshot = {
   version: number;
@@ -33,8 +43,13 @@ type Store = {
   selectedId: string | null;
   inspectorOpen: boolean;
 
+  monthsVisible: MonthsVisible;
+  monthWidth: number; // px per month, recomputed from viewport when monthsVisible changes
+
   setSelected: (id: string | null) => void;
   toggleInspector: () => void;
+  setMonthsVisible: (n: MonthsVisible) => void;
+  setMonthWidth: (w: number) => void;
 
   addLayer: (
     startMonthIdx: number,
@@ -82,11 +97,15 @@ export const useStore = create<Store>()(
       selectedId: null,
       inspectorOpen: true,
 
+      monthsVisible: 12,
+      monthWidth: MONTH_WIDTH_DEFAULT,
+
       setSelected: (id) => set({ selectedId: id }),
       toggleInspector: () => set((s) => ({ inspectorOpen: !s.inspectorOpen })),
+      setMonthsVisible: (n) => set({ monthsVisible: n }),
+      setMonthWidth: (w) => set({ monthWidth: Math.max(8, w) }),
 
       addLayer: (startMonthIdx, startDayOfMonth, endMonthIdx, endDayOfMonth, opts) => {
-        // Normalize so start <= end on the timeline.
         const startKey = startMonthIdx * 100 + startDayOfMonth;
         const endKey = endMonthIdx * 100 + endDayOfMonth;
         const swap = startKey > endKey;
@@ -235,6 +254,7 @@ export const useStore = create<Store>()(
         dates: state.dates,
         people: state.people,
         groups: state.groups,
+        monthsVisible: state.monthsVisible,
       }),
       migrate: (persistedState: unknown, version: number) => {
         const s = (persistedState ?? {}) as Record<string, unknown>;
@@ -278,31 +298,29 @@ export function daysInMonth(year: number, month: number): number {
   return new Date(year, month + 1, 0).getDate();
 }
 
-export function dateToX(monthIdx: number, dayOfMonth: number, startYear: number): number {
+export function dateToX(monthIdx: number, dayOfMonth: number, startYear: number, monthWidth: number): number {
   const year = startYear + Math.floor(monthIdx / 12);
   const month = ((monthIdx % 12) + 12) % 12;
   const dim = daysInMonth(year, month);
   const clamped = Math.max(1, Math.min(dim, dayOfMonth));
-  return monthIdx * MONTH_WIDTH + ((clamped - 1) / dim) * MONTH_WIDTH;
+  return monthIdx * monthWidth + ((clamped - 1) / dim) * monthWidth;
 }
 
-// The right edge of a day cell (i.e. the start of the following day). Useful
-// when computing the visual width of a span whose end day is *inclusive*.
-export function dateToEndX(monthIdx: number, dayOfMonth: number, startYear: number): number {
+export function dateToEndX(monthIdx: number, dayOfMonth: number, startYear: number, monthWidth: number): number {
   const year = startYear + Math.floor(monthIdx / 12);
   const month = ((monthIdx % 12) + 12) % 12;
   const dim = daysInMonth(year, month);
   const clamped = Math.max(1, Math.min(dim, dayOfMonth));
-  return monthIdx * MONTH_WIDTH + (clamped / dim) * MONTH_WIDTH;
+  return monthIdx * monthWidth + (clamped / dim) * monthWidth;
 }
 
-export function xToDateParts(x: number, startYear: number): {
+export function xToDateParts(x: number, startYear: number, monthWidth: number): {
   year: number;
   month: number;
   day: number;
   monthIdx: number;
 } {
-  const monthsTotalGuess = Math.max(0, x) / MONTH_WIDTH;
+  const monthsTotalGuess = Math.max(0, x) / monthWidth;
   const monthIdx = Math.max(0, Math.floor(monthsTotalGuess));
   const year = startYear + Math.floor(monthIdx / 12);
   const month = ((monthIdx % 12) + 12) % 12;
@@ -321,18 +339,25 @@ export type Occurrence = {
 
 export type BirthdayOccurrence = Occurrence & { age: number };
 
-function pushOccurrence(out: Occurrence[], d: Date, startYear: number, isBase: boolean): void {
+function pushOccurrence(
+  out: Occurrence[],
+  d: Date,
+  startYear: number,
+  monthWidth: number,
+  isBase: boolean
+): void {
   const year = d.getFullYear();
   const month = d.getMonth();
   const day = d.getDate();
   const monthIdx = (year - startYear) * 12 + month;
-  out.push({ monthIdx, dayOfMonth: day, x: dateToX(monthIdx, day, startYear), isBase });
+  out.push({ monthIdx, dayOfMonth: day, x: dateToX(monthIdx, day, startYear, monthWidth), isBase });
 }
 
 export function generateDateOccurrences(
   date: DateMark,
   startYear: number,
-  numYears: number
+  numYears: number,
+  monthWidth: number
 ): Occurrence[] {
   const out: Occurrence[] = [];
   const baseYear = startYear + Math.floor(date.monthIdx / 12);
@@ -347,7 +372,7 @@ export function generateDateOccurrences(
 
   if (repeat === "none") {
     if (base.getTime() >= startMs && base.getTime() < endMs) {
-      pushOccurrence(out, base, startYear, true);
+      pushOccurrence(out, base, startYear, monthWidth, true);
     }
     return out;
   }
@@ -356,7 +381,7 @@ export function generateDateOccurrences(
   let safety = 10000;
   while (cur.getTime() < endMs && safety-- > 0) {
     if (cur.getTime() >= startMs) {
-      pushOccurrence(out, cur, startYear, cur.getTime() === base.getTime());
+      pushOccurrence(out, cur, startYear, monthWidth, cur.getTime() === base.getTime());
     }
     if (repeat === "weekly") cur.setDate(cur.getDate() + 7);
     else if (repeat === "monthly") cur.setMonth(cur.getMonth() + 1);
@@ -374,7 +399,8 @@ export function generateDateOccurrences(
 export function generateBirthdayOccurrences(
   person: Person,
   startYear: number,
-  numYears: number
+  numYears: number,
+  monthWidth: number
 ): BirthdayOccurrence[] {
   const out: BirthdayOccurrence[] = [];
   for (let y = 0; y < numYears; y++) {
@@ -387,7 +413,7 @@ export function generateBirthdayOccurrences(
     out.push({
       monthIdx,
       dayOfMonth: day,
-      x: dateToX(monthIdx, day, startYear),
+      x: dateToX(monthIdx, day, startYear, monthWidth),
       isBase: out.length === 0,
       age,
     });
@@ -413,17 +439,29 @@ export type Lane = {
   datesHeight: number;
   rowsTopY: number;
   rowsHeight: number;
+  // Vertical stacking levels for each dot in the dates strip (entity id → level).
+  // The birthday entity is keyed as `birthday-${personId}`.
+  stackLevels: Map<string, number>;
 };
 
 export const laneKey = (lane: Lane) => lane.id ?? "__default__";
+
+export const birthdayKey = (personId: string) => `birthday-${personId}`;
+
+export function laneYCenter(_lane: Lane, level: number): number {
+  return STACK_PAD_TOP + (level + 0.5) * STACK_ROW_HEIGHT;
+}
 
 export function computeLanes(input: {
   layers: Layer[];
   dates: DateMark[];
   people: Person[];
   groups: Group[];
+  startYear: number;
+  numYears: number;
+  monthWidth: number;
 }): { lanes: Lane[]; totalHeight: number } {
-  const { layers, dates, people, groups } = input;
+  const { layers, dates, people, groups, startYear, numYears, monthWidth } = input;
   const lanes: Lane[] = [];
   let y = HEADER_HEIGHT;
 
@@ -439,7 +477,35 @@ export function computeLanes(input: {
     const spans = layers.filter((l) => idMatch(l.containerId));
     const dotDates = dates.filter((d) => idMatch(d.containerId) && !d.important);
 
-    const datesHeight = LANE_DATES_STRIP_HEIGHT;
+    // Gather entity anchor x positions for stacking.
+    type Anchor = { id: string; x: number };
+    const anchors: Anchor[] = [];
+    for (const d of dotDates) {
+      anchors.push({ id: d.id, x: dateToX(d.monthIdx, d.dayOfMonth, startYear, monthWidth) });
+    }
+    if (kind === "person" && extras.person) {
+      const firstBirthday = generateBirthdayOccurrences(extras.person, startYear, numYears, monthWidth)[0];
+      if (firstBirthday) {
+        anchors.push({ id: birthdayKey(extras.person.id), x: firstBirthday.x });
+      }
+    }
+
+    anchors.sort((a, b) => a.x - b.x);
+    const levelRight: number[] = [];
+    const stackLevels = new Map<string, number>();
+    for (const a of anchors) {
+      let level = 0;
+      while (level < levelRight.length && levelRight[level] > a.x) level++;
+      levelRight[level] = a.x + LABEL_RESERVATION;
+      stackLevels.set(a.id, level);
+    }
+
+    const maxLevel = anchors.length
+      ? Math.max(...anchors.map((a) => stackLevels.get(a.id) ?? 0))
+      : 0;
+    const stackedHeight = STACK_PAD_TOP + (maxLevel + 1) * STACK_ROW_HEIGHT + STACK_PAD_BOTTOM;
+    const datesHeight = Math.max(LANE_DATES_MIN_HEIGHT, stackedHeight);
+
     const rowCount = Math.max(LANE_MIN_SPAN_ROWS, spans.length);
     const rowsHeight = rowCount * LANE_ROW_HEIGHT + LANE_ROW_PAD_TOP;
     const height = datesHeight + rowsHeight + LANE_BOTTOM_PAD;
@@ -451,6 +517,7 @@ export function computeLanes(input: {
       ...extras,
       spans,
       dotDates,
+      stackLevels,
       topY: y,
       height,
       datesTopY: y,

@@ -3,9 +3,10 @@ import {
   HEADER_HEIGHT,
   LANE_ROW_HEIGHT,
   LANE_ROW_PAD_TOP,
-  MONTH_WIDTH,
+  birthdayKey,
   computeLanes,
   laneKey,
+  laneYCenter,
   totalMonths,
   useStore,
   xToDateParts,
@@ -14,11 +15,13 @@ import type { Lane } from "../state/store";
 import TimelineGrid from "./TimelineGrid";
 import YearDividers from "./YearDividers";
 import LayerBar from "./LayerBar";
+import type { LayerDragMode } from "./LayerBar";
 import DateMarker from "./DateMarker";
 import BirthdayMarker from "./BirthdayMarker";
 import TodayMarker from "./TodayMarker";
 import CursorTooltip from "./CursorTooltip";
 import AddMenu from "./AddMenu";
+import ZoomSlider from "./ZoomSlider";
 
 const MIN_DRAG_PX = 5;
 
@@ -32,6 +35,8 @@ type Draft = {
 
 type Cursor = { x: number; y: number; clientX: number; clientY: number } | null;
 
+type SpanDrag = { id: string; mode: LayerDragMode };
+
 export default function Canvas() {
   const numYears = useStore((s) => s.numYears);
   const startYear = useStore((s) => s.startYear);
@@ -39,6 +44,9 @@ export default function Canvas() {
   const dates = useStore((s) => s.dates);
   const people = useStore((s) => s.people);
   const groups = useStore((s) => s.groups);
+  const monthWidth = useStore((s) => s.monthWidth);
+  const monthsVisible = useStore((s) => s.monthsVisible);
+  const setMonthWidth = useStore((s) => s.setMonthWidth);
   const addLayer = useStore((s) => s.addLayer);
   const addDate = useStore((s) => s.addDate);
   const updateLayer = useStore((s) => s.updateLayer);
@@ -51,19 +59,38 @@ export default function Canvas() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [cursor, setCursor] = useState<Cursor>(null);
   const [hoverSpanId, setHoverSpanId] = useState<string | null>(null);
-  const [dragSpanId, setDragSpanId] = useState<string | null>(null);
+  const [spanDrag, setSpanDrag] = useState<SpanDrag | null>(null);
   const [dragDateId, setDragDateId] = useState<string | null>(null);
   const [dropLaneKey, setDropLaneKey] = useState<string | null>(null);
+
+  // Keep monthWidth in step with the visible scroll viewport. The slider
+  // chooses how many months fit; this effect rescales monthWidth accordingly
+  // whenever the viewport resizes or the zoom changes.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const recompute = () => {
+      const w = el.clientWidth;
+      if (w > 0) setMonthWidth(w / monthsVisible);
+    };
+    recompute();
+    const ro = new ResizeObserver(recompute);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [monthsVisible, setMonthWidth]);
 
   const onLayerHoverChange = useCallback((id: string, hovered: boolean) => {
     if (hovered) setHoverSpanId(id);
     else setHoverSpanId((cur) => (cur === id ? null : cur));
   }, []);
 
-  const onLayerDragChange = useCallback((id: string, isDragging: boolean) => {
-    if (isDragging) setDragSpanId(id);
-    else setDragSpanId((cur) => (cur === id ? null : cur));
-  }, []);
+  const onLayerDragChange = useCallback(
+    (id: string, mode: LayerDragMode | null) => {
+      if (mode) setSpanDrag({ id, mode });
+      else setSpanDrag((cur) => (cur?.id === id ? null : cur));
+    },
+    []
+  );
 
   const onDateDragChange = useCallback((id: string, isDragging: boolean) => {
     if (isDragging) setDragDateId(id);
@@ -71,11 +98,20 @@ export default function Canvas() {
   }, []);
 
   const monthsTotal = totalMonths(numYears);
-  const contentWidth = monthsTotal * MONTH_WIDTH;
+  const contentWidth = monthsTotal * monthWidth;
 
   const { lanes, totalHeight } = useMemo(
-    () => computeLanes({ layers, dates, people, groups }),
-    [layers, dates, people, groups]
+    () =>
+      computeLanes({
+        layers,
+        dates,
+        people,
+        groups,
+        startYear,
+        numYears,
+        monthWidth,
+      }),
+    [layers, dates, people, groups, startYear, numYears, monthWidth]
   );
 
   const importantDates = useMemo(() => dates.filter((d) => d.important), [dates]);
@@ -110,10 +146,9 @@ export default function Canvas() {
     [laneAtContentY]
   );
 
-  // Track the lane under the cursor while a span or date is being dragged so
-  // we can highlight it as the drop target.
+  // Lane highlight + cursor follow during any item drag.
   useEffect(() => {
-    if (!dragSpanId && !dragDateId) {
+    if (!spanDrag && !dragDateId) {
       setDropLaneKey(null);
       return;
     }
@@ -121,6 +156,12 @@ export default function Canvas() {
       const el = contentRef.current;
       if (!el) return;
       const rect = el.getBoundingClientRect();
+      setCursor({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+        clientX: e.clientX,
+        clientY: e.clientY,
+      });
       const inside =
         e.clientX >= rect.left &&
         e.clientX <= rect.right &&
@@ -135,7 +176,7 @@ export default function Canvas() {
     };
     window.addEventListener("mousemove", onMove);
     return () => window.removeEventListener("mousemove", onMove);
-  }, [dragSpanId, dragDateId, laneAtContentY]);
+  }, [spanDrag, dragDateId, laneAtContentY]);
 
   const onSpanDragEnd = (layerId: string, clientY: number) => {
     const containerId = containerAtClientY(clientY);
@@ -184,7 +225,7 @@ export default function Canvas() {
   };
 
   const onMouseLeaveContent = () => {
-    setCursor(null);
+    if (!spanDrag && !dragDateId) setCursor(null);
     if (draft) finishDraft();
   };
 
@@ -195,8 +236,8 @@ export default function Canvas() {
     if (distance >= MIN_DRAG_PX && !draft.inDatesStrip) {
       const lo = Math.min(draft.startX, draft.currentX);
       const hi = Math.max(draft.startX, draft.currentX);
-      const startParts = xToDateParts(lo, startYear);
-      const endParts = xToDateParts(Math.max(0, hi - 0.5), startYear);
+      const startParts = xToDateParts(lo, startYear, monthWidth);
+      const endParts = xToDateParts(Math.max(0, hi - 0.5), startYear, monthWidth);
       addLayer(
         startParts.monthIdx,
         startParts.day,
@@ -205,7 +246,7 @@ export default function Canvas() {
         { containerId: draft.laneId ?? undefined }
       );
     } else {
-      const parts = xToDateParts(draft.startX, startYear);
+      const parts = xToDateParts(draft.startX, startYear, monthWidth);
       addDate(parts.monthIdx, parts.day, { containerId: draft.laneId ?? undefined });
     }
 
@@ -232,6 +273,53 @@ export default function Canvas() {
     if (distance >= MIN_DRAG_PX && !draft.inDatesStrip) return null;
     return draft.startX;
   })();
+
+  // Tooltip content
+  let tooltipSpan: { startMonthIdx: number; endMonthIdx: number } | null = null;
+  let tooltipFocus: { monthIdx: number; day: number } | null = null;
+
+  if (spanDrag) {
+    const l = layers.find((x) => x.id === spanDrag.id);
+    if (l) {
+      if (spanDrag.mode === "resize-left") {
+        tooltipFocus = { monthIdx: l.startMonthIdx, day: l.startDayOfMonth };
+      } else if (spanDrag.mode === "resize-right") {
+        tooltipFocus = { monthIdx: l.endMonthIdx, day: l.endDayOfMonth };
+      } else {
+        tooltipSpan = { startMonthIdx: l.startMonthIdx, endMonthIdx: l.endMonthIdx };
+      }
+    }
+  } else if (hoverSpanId) {
+    const l = layers.find((x) => x.id === hoverSpanId);
+    if (l) tooltipSpan = { startMonthIdx: l.startMonthIdx, endMonthIdx: l.endMonthIdx };
+  } else if (draft && !draft.inDatesStrip) {
+    const distance = Math.abs(draft.currentX - draft.startX);
+    if (distance >= MIN_DRAG_PX) {
+      const lo = Math.min(draft.startX, draft.currentX);
+      const hi = Math.max(draft.startX, draft.currentX);
+      tooltipSpan = {
+        startMonthIdx: Math.max(0, Math.min(monthsTotal - 1, Math.floor(lo / monthWidth))),
+        endMonthIdx: Math.max(0, Math.min(monthsTotal - 1, Math.floor(hi / monthWidth))),
+      };
+    }
+  }
+
+  // Drag ghost: floating label following the cursor while a span or date is dragged.
+  let ghostLabel: string | null = null;
+  let ghostGlyph = "•";
+  if (spanDrag) {
+    const l = layers.find((x) => x.id === spanDrag.id);
+    if (l) {
+      ghostLabel = l.label;
+      ghostGlyph = "▭";
+    }
+  } else if (dragDateId) {
+    const d = dates.find((x) => x.id === dragDateId);
+    if (d) {
+      ghostLabel = d.label;
+      ghostGlyph = d.important ? "│" : "•";
+    }
+  }
 
   return (
     <div className="canvas-wrapper">
@@ -269,20 +357,26 @@ export default function Canvas() {
                       {lane.label || " "}
                     </span>
                   )}
-                  {lane.dotDates.map((d) => (
-                    <DateMarker
-                      key={d.id}
-                      date={d}
-                      mode="dot"
-                      yCenter={lane.datesHeight / 2}
-                      onDragEnd={onDateDragEnd}
-                      onDragChange={onDateDragChange}
-                    />
-                  ))}
+                  {lane.dotDates.map((d) => {
+                    const level = lane.stackLevels.get(d.id) ?? 0;
+                    return (
+                      <DateMarker
+                        key={d.id}
+                        date={d}
+                        mode="dot"
+                        yCenter={laneYCenter(lane, level)}
+                        onDragEnd={onDateDragEnd}
+                        onDragChange={onDateDragChange}
+                      />
+                    );
+                  })}
                   {lane.kind === "person" && lane.person && (
                     <BirthdayMarker
                       person={lane.person}
-                      yCenter={lane.datesHeight / 2}
+                      yCenter={laneYCenter(
+                        lane,
+                        lane.stackLevels.get(birthdayKey(lane.person.id)) ?? 0
+                      )}
                     />
                   )}
                 </div>
@@ -336,41 +430,30 @@ export default function Canvas() {
         </div>
       </div>
 
-      {cursor &&
-        (() => {
-          let span: { startMonthIdx: number; endMonthIdx: number } | null = null;
-          const activeId = dragSpanId ?? hoverSpanId;
-          if (activeId) {
-            const l = layers.find((x) => x.id === activeId);
-            if (l) span = { startMonthIdx: l.startMonthIdx, endMonthIdx: l.endMonthIdx };
-          } else if (draft && !draft.inDatesStrip) {
-            const distance = Math.abs(draft.currentX - draft.startX);
-            if (distance >= MIN_DRAG_PX) {
-              const lo = Math.min(draft.startX, draft.currentX);
-              const hi = Math.max(draft.startX, draft.currentX);
-              span = {
-                startMonthIdx: Math.max(
-                  0,
-                  Math.min(monthsTotal - 1, Math.floor(lo / MONTH_WIDTH))
-                ),
-                endMonthIdx: Math.max(
-                  0,
-                  Math.min(monthsTotal - 1, Math.floor(hi / MONTH_WIDTH))
-                ),
-              };
-            }
-          }
-          return (
-            <CursorTooltip
-              x={cursor.clientX}
-              y={cursor.clientY}
-              contentX={cursor.x}
-              span={span}
-            />
-          );
-        })()}
+      {cursor && (
+        <CursorTooltip
+          x={cursor.clientX}
+          y={cursor.clientY}
+          contentX={cursor.x}
+          span={tooltipSpan}
+          focusDate={tooltipFocus}
+        />
+      )}
 
-      <AddMenu />
+      {ghostLabel && cursor && (
+        <div
+          className="canvas-drag-ghost"
+          style={{ left: cursor.clientX + 14, top: cursor.clientY - 22 }}
+        >
+          <span className="canvas-drag-ghost-glyph">{ghostGlyph}</span>
+          <span className="canvas-drag-ghost-label">{ghostLabel}</span>
+        </div>
+      )}
+
+      <div className="canvas-toolbar">
+        <AddMenu />
+        <ZoomSlider />
+      </div>
     </div>
   );
 }

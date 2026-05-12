@@ -8,8 +8,9 @@ export default function BirthdayMarker({ person, yCenter }: Props) {
   const setSelected = useStore((s) => s.setSelected);
   const startYear = useStore((s) => s.startYear);
   const numYears = useStore((s) => s.numYears);
+  const monthWidth = useStore((s) => s.monthWidth);
 
-  const occurrences = generateBirthdayOccurrences(person, startYear, numYears);
+  const occurrences = generateBirthdayOccurrences(person, startYear, numYears, monthWidth);
   const isSelected = selectedId === person.id;
 
   return (
