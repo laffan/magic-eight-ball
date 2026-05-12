@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MONTH_WIDTH, useStore } from "../state/store";
 import type { Layer } from "../types";
+import InlineLabelEditor from "./InlineLabelEditor";
 
 type Props = {
   layer: Layer;
@@ -18,6 +19,7 @@ export default function LayerBar({ layer, rowIndex, rowHeight, rowPadTop, months
   const updateLayer = useStore((s) => s.updateLayer);
 
   const [dragging, setDragging] = useState<DragMode | null>(null);
+  const [editing, setEditing] = useState(false);
   const startRef = useRef<{ x: number; start: number; end: number } | null>(null);
 
   const isSelected = selectedId === layer.id;
@@ -28,6 +30,7 @@ export default function LayerBar({ layer, rowIndex, rowHeight, rowPadTop, months
   const width = (layer.endMonthIdx - layer.startMonthIdx + 1) * MONTH_WIDTH;
 
   const onMouseDown = (mode: DragMode) => (e: React.MouseEvent) => {
+    if (editing) return;
     e.stopPropagation();
     if (e.button !== 0) return;
     setSelected(layer.id);
@@ -46,7 +49,7 @@ export default function LayerBar({ layer, rowIndex, rowHeight, rowPadTop, months
       if (!startRef.current) return;
       const dx = e.clientX - startRef.current.x;
       const dMonths = Math.round(dx / MONTH_WIDTH);
-      let { start, end } = startRef.current;
+      const { start, end } = startRef.current;
 
       if (dragging === "move") {
         const span = end - start;
@@ -62,10 +65,10 @@ export default function LayerBar({ layer, rowIndex, rowHeight, rowPadTop, months
         }
         updateLayer(layer.id, { startMonthIdx: ns, endMonthIdx: ne });
       } else if (dragging === "resize-left") {
-        let ns = Math.min(end, Math.max(0, start + dMonths));
+        const ns = Math.min(end, Math.max(0, start + dMonths));
         updateLayer(layer.id, { startMonthIdx: ns });
       } else if (dragging === "resize-right") {
-        let ne = Math.max(start, Math.min(monthsTotal - 1, end + dMonths));
+        const ne = Math.max(start, Math.min(monthsTotal - 1, end + dMonths));
         updateLayer(layer.id, { endMonthIdx: ne });
       }
     };
@@ -86,12 +89,17 @@ export default function LayerBar({ layer, rowIndex, rowHeight, rowPadTop, months
   return (
     <div
       data-interactive
-      className={`layer-bar ${isSelected ? "is-selected" : ""} ${dragging ? "is-dragging" : ""}`}
+      className={`layer-bar ${isSelected ? "is-selected" : ""} ${dragging ? "is-dragging" : ""} ${editing ? "is-editing" : ""}`}
       style={{ left, top, width, height }}
       onMouseDown={onMouseDown("move")}
       onClick={(e) => {
         e.stopPropagation();
         setSelected(layer.id);
+      }}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        setSelected(layer.id);
+        setEditing(true);
       }}
       title={layer.label}
     >
@@ -100,7 +108,20 @@ export default function LayerBar({ layer, rowIndex, rowHeight, rowPadTop, months
         onMouseDown={onMouseDown("resize-left")}
         data-interactive
       />
-      <span className="layer-label">{layer.label}</span>
+      {editing ? (
+        <InlineLabelEditor
+          className="layer-label-input"
+          value={layer.label}
+          onCommit={(next) => {
+            const trimmed = next.trim();
+            if (trimmed) updateLayer(layer.id, { label: trimmed });
+            setEditing(false);
+          }}
+          onCancel={() => setEditing(false)}
+        />
+      ) : (
+        <span className="layer-label">{layer.label}</span>
+      )}
       <span
         className="layer-handle layer-handle-right"
         onMouseDown={onMouseDown("resize-right")}

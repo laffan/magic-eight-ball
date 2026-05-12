@@ -4,6 +4,7 @@ import TimelineGrid from "./TimelineGrid";
 import YearDividers from "./YearDividers";
 import LayerBar from "./LayerBar";
 import DateMarker from "./DateMarker";
+import TodayMarker from "./TodayMarker";
 import AddMenu from "./AddMenu";
 
 const HEADER_HEIGHT = 64;
@@ -123,7 +124,7 @@ export default function Canvas() {
         <div
           ref={contentRef}
           className="canvas-content"
-          style={{ width: contentWidth, minHeight: HEADER_HEIGHT + rowsAreaHeight }}
+          style={{ width: contentWidth }}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={onMouseUp}
@@ -132,10 +133,7 @@ export default function Canvas() {
           <YearDividers />
           <TimelineGrid />
 
-          <div
-            className="rows-area"
-            style={{ top: HEADER_HEIGHT, height: rowsAreaHeight }}
-          >
+          <div className="rows-area" style={{ height: rowsAreaHeight }}>
             {layers.map((layer, idx) => (
               <LayerBar
                 key={layer.id}
@@ -147,6 +145,8 @@ export default function Canvas() {
               />
             ))}
           </div>
+
+          <TodayMarker />
 
           <div className="dates-overlay" style={{ width: contentWidth }}>
             {dates.map((d) => (

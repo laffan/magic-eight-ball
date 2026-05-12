@@ -1,16 +1,33 @@
 import { MONTHS_PER_YEAR, monthLabel, useStore } from "../state/store";
+import type { Item, RepeatKind } from "../types";
+
+const REPEAT_OPTIONS: { value: RepeatKind; label: string }[] = [
+  { value: "none", label: "Does not repeat" },
+  { value: "weekly", label: "Weekly" },
+  { value: "monthly", label: "Monthly" },
+  { value: "annual", label: "Annual" },
+  { value: "custom", label: "Custom" },
+];
 
 export default function Inspector() {
   const open = useStore((s) => s.inspectorOpen);
   const toggle = useStore((s) => s.toggleInspector);
-  const selectedId = useStore((s) => s.selectedId);
-  const getItem = useStore((s) => s.getItem);
+  const startYear = useStore((s) => s.startYear);
+
+  // Subscribe to layers/dates so the inspector re-renders when the selected
+  // item's fields change (otherwise controlled inputs appear "stuck").
+  const item = useStore<Item | null>((s) => {
+    if (!s.selectedId) return null;
+    return (
+      s.layers.find((l) => l.id === s.selectedId) ??
+      s.dates.find((d) => d.id === s.selectedId) ??
+      null
+    );
+  });
+
   const updateLayer = useStore((s) => s.updateLayer);
   const updateDate = useStore((s) => s.updateDate);
   const removeItem = useStore((s) => s.removeItem);
-  const startYear = useStore((s) => s.startYear);
-
-  const item = getItem(selectedId);
 
   const formatMonth = (idx: number) => {
     const year = startYear + Math.floor(idx / MONTHS_PER_YEAR);
@@ -76,6 +93,41 @@ export default function Inspector() {
                 <span className="field-label">Date</span>
                 <div className="field-value">{formatMonth(item.monthIdx)}</div>
               </div>
+
+              <label className="field">
+                <span className="field-label">Repeating</span>
+                <select
+                  className="field-input"
+                  value={item.repeat ?? "none"}
+                  onChange={(e) =>
+                    updateDate(item.id, { repeat: e.target.value as RepeatKind })
+                  }
+                >
+                  {REPEAT_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {item.repeat === "custom" && (
+                <label className="field">
+                  <span className="field-label">Every (days)</span>
+                  <input
+                    className="field-input"
+                    type="number"
+                    min={1}
+                    value={item.repeatEveryDays ?? 14}
+                    onChange={(e) =>
+                      updateDate(item.id, {
+                        repeatEveryDays: Math.max(1, Number(e.target.value) || 1),
+                      })
+                    }
+                  />
+                </label>
+              )}
+
               <button className="danger-btn" onClick={() => removeItem(item.id)}>
                 Delete
               </button>
