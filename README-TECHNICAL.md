@@ -42,13 +42,10 @@ to redesign the feature.
 
 #### Current state
 
-At the time of writing, one file is already over the limit:
-
-| File | Lines | Action |
-| --- | --- | --- |
-| `src/styles.css` | 1151 | Must be split before the next non-trivial styling change. Section comments (`/* ----- Inspector ----- */`, `/* ----- Lanes ----- */`, etc.) already mark natural cut points. |
-
-Treat this as the one grandfathered exception. Do not introduce more.
+All current files are within the limit. `src/styles.css` is now an entry that
+`@import`s the per-feature files in `src/styles/`. Add new styling under the
+file that matches the feature; if no obvious home exists, create a new
+`src/styles/<feature>.css` and import it from `styles.css`.
 
 ### 1.2 Type safety is non-negotiable
 
@@ -75,20 +72,29 @@ comments. If a hook or check is failing, fix the root cause.
 ```
 src/
   main.tsx                React 18 entry, StrictMode wrapper
-  App.tsx                 Three-pane shell (sidebar, canvas, inspector)
+  App.tsx                 Top menubar + three-pane shell, owns import file inputs
   types.ts                Domain types (Layer, DateMark, Person, Group)
-  styles.css              All styling (see 1.1 — needs splitting)
+  styles.css              Entry: @imports the per-feature files below + base/layout/sidebar/canvas/timeline
+  styles/
+    dates.css             Today marker + date markers
+    toolbar.css           + Add menu + canvas toolbar
+    inspector.css         Inspector + scrollbar
+    menubar.css           Top File menu
+    import-preview.css    .ics preview modal
   state/
     store.ts              Zustand store + pure layout/date helpers
+    icsImport.ts          .ics (iCalendar) parser + event → import-item conversion
   components/
     Canvas.tsx            Scrollable canvas, drag-to-create, drop targeting
-    LayerSidebar.tsx      Left tree, custom drag-and-drop, export/import
+    LayerSidebar.tsx      Left tree, custom drag-and-drop
     Inspector.tsx         Right detail panel
+    MenuBar.tsx           Top "File" menu (calendar / JSON import / JSON export)
+    ImportPreview.tsx     Modal preview + checklist for .ics events before import
     LayerBar.tsx          A single Gantt-style span
     DateMarker.tsx        A single date (dot or full-height line)
     BirthdayMarker.tsx    Annual birthday dots for a Person
     TimelineGrid.tsx      Sticky header: years + month cells
-    YearDividers.tsx      Full-height vertical year separators
+    YearDividers.tsx      Full-height year + (at ≤ 1y zoom) month separators
     TodayMarker.tsx       Red "today" line
     CursorTooltip.tsx     Hovering date readout
     AddMenu.tsx           + button flyout
@@ -253,10 +259,12 @@ layering, low to high, is:
 | 3 | `date-dot-wrap`, `lane` |
 | 5 | `today-marker`, `lane-label`, `draft-preview` |
 | 7 | `timeline-grid` (sticky header) |
-| 8 | `date-line-label-wrap` |
+| 8 | `date-line-label-wrap`, `year-dividers` (year / month dividers) |
 | 20 | `canvas-toolbar` |
 | 100 | `cursor-tooltip` |
 | 1000 | `canvas-drag-ghost`, `sidebar-drag-ghost` |
+| 1500 | `menubar-flyout` |
+| 2000 | `import-preview-backdrop` |
 
 When adding overlays, slot them into this scheme rather than picking
 arbitrary values. If you find yourself needing a value not on this list,

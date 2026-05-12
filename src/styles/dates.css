@@ -1,0 +1,143 @@
+/* ----- Today marker ----- */
+
+.today-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1.5px;
+  background: #d23a3a;
+  z-index: 5;
+  pointer-events: none;
+}
+
+/* ----- Date markers ----- */
+
+.dates-lines {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+}
+
+/* Date as a labeled dot (default presentation) */
+.date-dot-wrap {
+  position: absolute;
+  top: 50%;
+  transform: translate(-4px, -50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  cursor: pointer;
+  z-index: 3;
+}
+
+.date-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink-2);
+  border: 1px solid var(--ink);
+  flex: 0 0 auto;
+}
+
+.date-dot-wrap.is-selected .date-dot {
+  background: var(--ink);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.08);
+}
+
+.date-dot-wrap.is-repeat .date-dot {
+  background: var(--bg);
+  border-color: var(--line-strong);
+}
+
+.date-dot-wrap.is-birthday .date-dot.is-birthday-dot {
+  background: var(--surface);
+  border: 1.5px solid var(--ink);
+}
+
+.date-dot-label {
+  font-size: 11px;
+  color: var(--ink);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.date-dot-wrap.is-repeat .date-dot-label {
+  display: none;
+}
+
+.date-dot-label-input {
+  font: inherit;
+  font-size: 11px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--selection);
+  border-radius: 3px;
+  padding: 1px 4px;
+  outline: none;
+  min-width: 100px;
+}
+
+/* Date as a full-height line (when "Important" is set).
+   The line sits beneath layers / dots; the label tab sits above them. */
+.date-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--date-fill);
+  pointer-events: auto;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.date-line.is-repeat {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.date-line.is-selected {
+  background: var(--date-selected-fill);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18);
+}
+
+.date-line-label-wrap {
+  position: absolute;
+  top: 4px;
+  z-index: 8;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.date-line-label {
+  display: inline-block;
+  margin-left: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 10px;
+  padding: 2px 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.date-line-label-wrap.is-selected .date-line-label {
+  border-color: var(--selection);
+}
+
+.date-line-label-input {
+  position: relative;
+  margin-left: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 10px;
+  padding: 2px 6px;
+  border: 1px solid var(--selection);
+  border-radius: 3px;
+  outline: none;
+  width: 140px;
+}

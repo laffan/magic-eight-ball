@@ -1,0 +1,75 @@
+/* ----- Top menu bar (File menu) ----- */
+
+.menubar {
+  grid-area: menubar;
+  display: flex;
+  align-items: stretch;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  padding: 0 8px;
+  height: var(--menubar-h);
+  flex: 0 0 auto;
+}
+
+.menubar-menu {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.menubar-button {
+  background: transparent;
+  border: none;
+  padding: 0 10px;
+  font-size: 12px;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  border-radius: 3px;
+  margin: 3px 0;
+}
+
+.menubar-button:hover,
+.menubar-button.is-open {
+  background: var(--surface-2);
+}
+
+.menubar-flyout {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 2px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  min-width: 200px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  z-index: 1500;
+}
+
+.menubar-item {
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink);
+  cursor: pointer;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.menubar-item:hover {
+  background: var(--surface-2);
+}
+
+.menubar-divider {
+  height: 1px;
+  background: var(--line);
+  margin: 4px 0;
+}

@@ -34,6 +34,7 @@ export default function LayerBar({
 }: Props) {
   const selectedId = useStore((s) => s.selectedId);
   const setSelected = useStore((s) => s.setSelected);
+  const addLayer = useStore((s) => s.addLayer);
   const updateLayer = useStore((s) => s.updateLayer);
   const startYear = useStore((s) => s.startYear);
   const monthWidth = useStore((s) => s.monthWidth);
@@ -41,6 +42,10 @@ export default function LayerBar({
   const [dragging, setDragging] = useState<LayerDragMode | null>(null);
   const [editing, setEditing] = useState(false);
   const startRef = useRef<DragStart | null>(null);
+  // The id actually being mutated by this drag. Normally `layer.id`, but when
+  // the user holds Option/Alt at mousedown we create a duplicate first and the
+  // drag operates on the duplicate so the original stays in place.
+  const dragIdRef = useRef<string>(layer.id);
 
   const isSelected = selectedId === layer.id;
 
@@ -57,13 +62,26 @@ export default function LayerBar({
     if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
-    setSelected(layer.id);
+
+    let dragLayer: Layer = layer;
+    if (mode === "move" && e.altKey) {
+      dragLayer = addLayer(
+        layer.startMonthIdx,
+        layer.startDayOfMonth,
+        layer.endMonthIdx,
+        layer.endDayOfMonth,
+        { label: layer.label, containerId: layer.containerId }
+      );
+    }
+
+    dragIdRef.current = dragLayer.id;
+    setSelected(dragLayer.id);
     setDragging(mode);
-    onDragChange?.(layer.id, mode);
+    onDragChange?.(dragLayer.id, mode);
     startRef.current = {
       clientX: e.clientX,
-      baseLeftX: dateToX(layer.startMonthIdx, layer.startDayOfMonth, startYear, monthWidth),
-      baseRightX: dateToEndX(layer.endMonthIdx, layer.endDayOfMonth, startYear, monthWidth),
+      baseLeftX: dateToX(dragLayer.startMonthIdx, dragLayer.startDayOfMonth, startYear, monthWidth),
+      baseRightX: dateToEndX(dragLayer.endMonthIdx, dragLayer.endDayOfMonth, startYear, monthWidth),
     };
   };
 
@@ -77,6 +95,7 @@ export default function LayerBar({
       if (!startRef.current) return;
       const { clientX, baseLeftX, baseRightX } = startRef.current;
       const dx = e.clientX - clientX;
+      const id = dragIdRef.current;
 
       if (dragging === "move") {
         const spanWidth = baseRightX - baseLeftX;
@@ -86,7 +105,7 @@ export default function LayerBar({
         const newRightX = newLeftX + spanWidth;
         const startParts = xToDateParts(newLeftX, startYear, monthWidth);
         const endParts = xToDateParts(Math.max(0, newRightX - 0.5), startYear, monthWidth);
-        updateLayer(layer.id, {
+        updateLayer(id, {
           startMonthIdx: startParts.monthIdx,
           startDayOfMonth: startParts.day,
           endMonthIdx: endParts.monthIdx,
@@ -95,14 +114,14 @@ export default function LayerBar({
       } else if (dragging === "resize-left") {
         const newLeftX = Math.max(0, Math.min(baseRightX - 1, baseLeftX + dx));
         const parts = xToDateParts(newLeftX, startYear, monthWidth);
-        updateLayer(layer.id, {
+        updateLayer(id, {
           startMonthIdx: parts.monthIdx,
           startDayOfMonth: parts.day,
         });
       } else if (dragging === "resize-right") {
         const newRightX = Math.max(baseLeftX + 1, Math.min(contentWidth, baseRightX + dx));
         const parts = xToDateParts(Math.max(0, newRightX - 0.5), startYear, monthWidth);
-        updateLayer(layer.id, {
+        updateLayer(id, {
           endMonthIdx: parts.monthIdx,
           endDayOfMonth: parts.day,
         });
@@ -110,10 +129,12 @@ export default function LayerBar({
     };
 
     const onUp = (e: MouseEvent) => {
-      if (dragging === "move" && onDragEnd) onDragEnd(layer.id, e.clientY);
-      onDragChange?.(layer.id, null);
+      const id = dragIdRef.current;
+      if (dragging === "move" && onDragEnd) onDragEnd(id, e.clientY);
+      onDragChange?.(id, null);
       setDragging(null);
       startRef.current = null;
+      dragIdRef.current = layer.id;
       document.body.style.userSelect = prevUserSelect;
     };
 

@@ -54,6 +54,7 @@ type Store = {
   toggleInspector: () => void;
   setMonthsVisible: (n: MonthsVisible) => void;
   setMonthWidth: (w: number) => void;
+  setNumYears: (n: number) => void;
   requestScrollTo: (id: string) => void;
 
   addLayer: (
@@ -110,6 +111,7 @@ export const useStore = create<Store>()(
       toggleInspector: () => set((s) => ({ inspectorOpen: !s.inspectorOpen })),
       setMonthsVisible: (n) => set({ monthsVisible: n }),
       setMonthWidth: (w) => set({ monthWidth: Math.max(8, w) }),
+      setNumYears: (n) => set({ numYears: Math.max(1, Math.floor(n)) }),
       requestScrollTo: (id) =>
         set((s) => ({
           scrollToTarget: { id, nonce: (s.scrollToTarget?.nonce ?? 0) + 1 },

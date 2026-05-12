@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { monthLabel, useStore } from "../state/store";
 import type { DateMark, Group, Layer, Person } from "../types";
 import InlineLabelEditor from "./InlineLabelEditor";
@@ -48,12 +48,9 @@ export default function LayerSidebar() {
   const updateDate = useStore((s) => s.updateDate);
   const updatePerson = useStore((s) => s.updatePerson);
   const updateGroup = useStore((s) => s.updateGroup);
-  const exportSnapshot = useStore((s) => s.exportSnapshot);
-  const importSnapshot = useStore((s) => s.importSnapshot);
 
   const [drag, setDrag] = useState<DragState | null>(null);
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null);
-  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   // Global mousemove/mouseup driving the custom DnD. We use this rather than
   // HTML5 drag-and-drop because HTML5 DnD is unreliable inside Tauri webviews.
@@ -142,37 +139,6 @@ export default function LayerSidebar() {
   const datesIn = (id: string) => dates.filter((d) => d.containerId === id);
   const orphanLayers = layers.filter((l) => !l.containerId);
   const orphanDates = dates.filter((d) => !d.containerId);
-
-  const handleExport = () => {
-    const snapshot = exportSnapshot();
-    const json = JSON.stringify(snapshot, null, 2);
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `magic-eight-ball-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const data = JSON.parse(String(reader.result ?? ""));
-        const ok = importSnapshot(data);
-        if (!ok) alert("Could not import: file shape didn't look right.");
-      } catch {
-        alert("Could not import: invalid JSON.");
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = "";
-  };
 
   return (
     <aside className="layer-sidebar">
@@ -285,25 +251,6 @@ export default function LayerSidebar() {
           </section>
         )}
       </div>
-
-      <footer className="sidebar-footer">
-        <button className="sidebar-footer-btn" onClick={handleExport}>
-          Export JSON
-        </button>
-        <button
-          className="sidebar-footer-btn"
-          onClick={() => importInputRef.current?.click()}
-        >
-          Import JSON
-        </button>
-        <input
-          ref={importInputRef}
-          type="file"
-          accept="application/json,.json"
-          style={{ display: "none" }}
-          onChange={handleImportFile}
-        />
-      </footer>
 
       {drag?.isDragging && (
         <div
