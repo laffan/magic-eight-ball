@@ -1,0 +1,22 @@
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.log
+.DS_Store
+.env
+.env.local
+
+# TypeScript incremental build outputs
+*.tsbuildinfo
+vite.config.d.ts
+vite.config.js
+
+# Tauri / Rust
+src-tauri/target/
+src-tauri/gen/
+
+# Editor
+.vscode/
+.idea/
+*.swp
