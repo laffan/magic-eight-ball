@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import {
   dateToX,
   generateDateOccurrences,
@@ -34,6 +34,7 @@ export default function DateMarker({ date, mode, yCenter, onDragEnd, onDragChang
 
   const isSelected = selectedId === date.id;
   const occurrences = generateDateOccurrences(date, startYear, numYears, monthWidth);
+  const repeats = !!date.repeat && date.repeat !== "none";
 
   const commit = (next: string) => {
     const trimmed = next.trim();
@@ -89,44 +90,64 @@ export default function DateMarker({ date, mode, yCenter, onDragEnd, onDragChang
   }, [dragging, date.id, monthWidth, onDragChange, onDragEnd, startYear, updateDate]);
 
   if (mode === "line") {
+    // Line and label are rendered as siblings with very different z-indices:
+    // the line sits beneath other canvas content, the label tab sits above.
     return (
       <>
         {occurrences.map((occ, i) => {
-          const showLabel = occ.isBase;
+          const lineStyle: React.CSSProperties = { left: occ.x };
+          if (date.color) lineStyle.background = date.color;
           return (
-            <div
-              key={`${date.id}-${i}`}
-              data-interactive={occ.isBase ? "" : undefined}
-              className={`date-line ${isSelected ? "is-selected" : ""} ${
-                occ.isBase ? "is-base" : "is-repeat"
-              }`}
-              style={{ left: occ.x }}
-              onMouseDown={(e) => occ.isBase && e.stopPropagation()}
-              onClick={(e) => {
-                if (!occ.isBase) return;
-                e.stopPropagation();
-                setSelected(date.id);
-              }}
-              onDoubleClick={(e) => {
-                if (!occ.isBase) return;
-                e.stopPropagation();
-                setSelected(date.id);
-                setEditing(true);
-              }}
-              title={date.label}
-            >
-              {showLabel && editing && (
-                <InlineLabelEditor
-                  className="date-line-label-input"
-                  value={date.label}
-                  onCommit={commit}
-                  onCancel={() => setEditing(false)}
-                />
+            <Fragment key={`${date.id}-${i}`}>
+              <div
+                data-interactive={occ.isBase ? "" : undefined}
+                className={`date-line ${isSelected ? "is-selected" : ""} ${
+                  occ.isBase ? "is-base" : "is-repeat"
+                }`}
+                style={lineStyle}
+                onMouseDown={(e) => occ.isBase && e.stopPropagation()}
+                onClick={(e) => {
+                  if (!occ.isBase) return;
+                  e.stopPropagation();
+                  setSelected(date.id);
+                }}
+                title={date.label}
+              />
+              {occ.isBase && (
+                <div
+                  data-interactive
+                  className={`date-line-label-wrap ${isSelected ? "is-selected" : ""}`}
+                  style={{ left: occ.x }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelected(date.id);
+                  }}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    setSelected(date.id);
+                    setEditing(true);
+                  }}
+                  title={date.label}
+                >
+                  {editing ? (
+                    <InlineLabelEditor
+                      className="date-line-label-input"
+                      value={date.label}
+                      onCommit={commit}
+                      onCancel={() => setEditing(false)}
+                    />
+                  ) : (
+                    <span
+                      className="date-line-label"
+                      style={date.color ? { borderColor: date.color } : undefined}
+                    >
+                      {date.label}
+                    </span>
+                  )}
+                </div>
               )}
-              {showLabel && !editing && (
-                <span className="date-line-label">{date.label}</span>
-              )}
-            </div>
+            </Fragment>
           );
         })}
       </>
@@ -137,14 +158,17 @@ export default function DateMarker({ date, mode, yCenter, onDragEnd, onDragChang
     <>
       {occurrences.map((occ, i) => {
         const showLabel = occ.isBase;
-        const style = { left: occ.x, top: yCenter ?? "50%" } as const;
+        const style: React.CSSProperties = { left: occ.x, top: yCenter ?? "50%" };
+        // For repeating dates each occurrence is a full dot (its own row, not a ghost).
+        const variantClass = occ.isBase || repeats ? "is-base" : "is-repeat";
+        const dotStyle = date.color
+          ? ({ background: date.color, borderColor: date.color } as React.CSSProperties)
+          : undefined;
         return (
           <div
             key={`${date.id}-${i}`}
             data-interactive={occ.isBase ? "" : undefined}
-            className={`date-dot-wrap ${isSelected ? "is-selected" : ""} ${
-              occ.isBase ? "is-base" : "is-repeat"
-            }`}
+            className={`date-dot-wrap ${isSelected ? "is-selected" : ""} ${variantClass}`}
             style={style}
             onMouseDown={occ.isBase ? startDotDrag : undefined}
             onClick={(e) => {
@@ -160,7 +184,7 @@ export default function DateMarker({ date, mode, yCenter, onDragEnd, onDragChang
             }}
             title={date.label}
           >
-            <span className="date-dot" />
+            <span className="date-dot" style={dotStyle} />
             {showLabel && editing && (
               <InlineLabelEditor
                 className="date-dot-label-input"

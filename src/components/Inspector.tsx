@@ -16,6 +16,15 @@ const REPEAT_OPTIONS: { value: RepeatKind; label: string }[] = [
   { value: "custom", label: "Custom" },
 ];
 
+const COLOR_OPTIONS = [
+  "#d23a3a",
+  "#d18a3a",
+  "#c9a83a",
+  "#4a9d5b",
+  "#3a7fc9",
+  "#8a4cb0",
+];
+
 export default function Inspector() {
   const open = useStore((s) => s.inspectorOpen);
   const toggle = useStore((s) => s.toggleInspector);
@@ -161,6 +170,30 @@ export default function Inspector() {
                 />
                 <span>Important date</span>
               </label>
+
+              <div className="field">
+                <span className="field-label">Color</span>
+                <div className="color-swatches">
+                  <button
+                    type="button"
+                    className={`color-swatch is-clear ${!item.color ? "is-active" : ""}`}
+                    onClick={() => updateDate(item.id, { color: undefined })}
+                    title="No color"
+                    aria-label="No color"
+                  />
+                  {COLOR_OPTIONS.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      className={`color-swatch ${item.color === c ? "is-active" : ""}`}
+                      style={{ background: c }}
+                      onClick={() => updateDate(item.id, { color: c })}
+                      title={c}
+                      aria-label={`Color ${c}`}
+                    />
+                  ))}
+                </div>
+              </div>
 
               <label className="field">
                 <span className="field-label">Repeating</span>

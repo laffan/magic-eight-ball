@@ -477,25 +477,54 @@ export function computeLanes(input: {
     const spans = layers.filter((l) => idMatch(l.containerId));
     const dotDates = dates.filter((d) => idMatch(d.containerId) && !d.important);
 
-    // Gather entity anchor x positions for stacking.
-    type Anchor = { id: string; x: number };
+    // Gather entity anchor x positions for stacking. A repeating date (or a
+    // person's annual birthday) gets its own exclusive row so all of its
+    // occurrences live on one shared y position.
+    type Anchor = { id: string; x: number; exclusive: boolean };
     const anchors: Anchor[] = [];
     for (const d of dotDates) {
-      anchors.push({ id: d.id, x: dateToX(d.monthIdx, d.dayOfMonth, startYear, monthWidth) });
+      const repeats = d.repeat && d.repeat !== "none";
+      anchors.push({
+        id: d.id,
+        x: dateToX(d.monthIdx, d.dayOfMonth, startYear, monthWidth),
+        exclusive: !!repeats,
+      });
     }
     if (kind === "person" && extras.person) {
-      const firstBirthday = generateBirthdayOccurrences(extras.person, startYear, numYears, monthWidth)[0];
+      const firstBirthday = generateBirthdayOccurrences(
+        extras.person,
+        startYear,
+        numYears,
+        monthWidth
+      )[0];
       if (firstBirthday) {
-        anchors.push({ id: birthdayKey(extras.person.id), x: firstBirthday.x });
+        anchors.push({
+          id: birthdayKey(extras.person.id),
+          x: firstBirthday.x,
+          exclusive: true,
+        });
       }
     }
 
-    anchors.sort((a, b) => a.x - b.x);
-    const levelRight: number[] = [];
     const stackLevels = new Map<string, number>();
-    for (const a of anchors) {
+    const levelRight: number[] = [];
+
+    // Exclusive entities each get their own brand-new level (occupied the
+    // whole timeline width so nothing else can fall into the same row).
+    const exclusives = anchors.filter((a) => a.exclusive).sort((a, b) => a.x - b.x);
+    for (const a of exclusives) {
+      const level = levelRight.length;
+      levelRight.push(Number.POSITIVE_INFINITY);
+      stackLevels.set(a.id, level);
+    }
+
+    // Shared entities use the standard greedy stacker, skipping over any
+    // exclusive rows because their right-edge is Infinity.
+    const shared = anchors.filter((a) => !a.exclusive).sort((a, b) => a.x - b.x);
+    for (const a of shared) {
       let level = 0;
       while (level < levelRight.length && levelRight[level] > a.x) level++;
+      if (level >= levelRight.length) levelRight.push(0);
       levelRight[level] = a.x + LABEL_RESERVATION;
       stackLevels.set(a.id, level);
     }

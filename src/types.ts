@@ -21,6 +21,7 @@ export type DateMark = {
   repeat?: RepeatKind;
   repeatEveryDays?: number;
   containerId?: string;
+  color?: string;
 };
 
 export type Person = {
