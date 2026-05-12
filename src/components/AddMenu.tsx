@@ -5,6 +5,7 @@ export default function AddMenu() {
   const [open, setOpen] = useState(false);
   const addLayer = useStore((s) => s.addLayer);
   const addDate = useStore((s) => s.addDate);
+  const addPerson = useStore((s) => s.addPerson);
   const startYear = useStore((s) => s.startYear);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -19,11 +20,11 @@ export default function AddMenu() {
     return () => window.removeEventListener("mousedown", onClick);
   }, [open]);
 
-  const nowMonthIdx = (() => {
-    const now = new Date();
-    const monthsFromStart = (now.getFullYear() - startYear) * 12 + now.getMonth();
-    return Math.max(0, monthsFromStart);
-  })();
+  const today = new Date();
+  const nowMonthIdx = Math.max(
+    0,
+    (today.getFullYear() - startYear) * 12 + today.getMonth()
+  );
 
   return (
     <div className="add-menu" ref={rootRef}>
@@ -36,16 +37,25 @@ export default function AddMenu() {
               setOpen(false);
             }}
           >
-            New layer
+            New span
           </button>
           <button
             className="add-menu-item"
             onClick={() => {
-              addDate(nowMonthIdx);
+              addDate(nowMonthIdx, today.getDate());
               setOpen(false);
             }}
           >
             New date
+          </button>
+          <button
+            className="add-menu-item"
+            onClick={() => {
+              addPerson();
+              setOpen(false);
+            }}
+          >
+            New person
           </button>
           <div className="add-menu-hint">
             Tip: click &amp; drag on the canvas to draw a span, or click for a date.

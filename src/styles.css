@@ -129,6 +129,17 @@ button {
   padding: 0;
 }
 
+.sidebar-nested {
+  margin-left: 16px;
+  border-left: 1px solid var(--line);
+  margin-top: 2px;
+  margin-bottom: 4px;
+}
+
+.sidebar-group {
+  padding-bottom: 2px;
+}
+
 .sidebar-item {
   display: flex;
   align-items: center;
@@ -138,6 +149,12 @@ button {
   font-size: 12px;
   color: var(--ink);
   border-left: 2px solid transparent;
+  background: transparent;
+  border-top: none;
+  border-right: none;
+  border-bottom: none;
+  width: 100%;
+  text-align: left;
 }
 
 .sidebar-item:hover {
@@ -362,15 +379,86 @@ button {
 
 /* ----- Date markers ----- */
 
-.dates-overlay {
+.dates-strip {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.dates-lines {
   position: absolute;
   top: 0;
   bottom: 0;
+  left: 0;
+  right: 0;
   z-index: 7;
   pointer-events: none;
 }
 
-.date-marker {
+/* Date as a labeled dot (default presentation) */
+.date-dot-wrap {
+  position: absolute;
+  top: 50%;
+  transform: translate(-4px, -50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  cursor: pointer;
+  z-index: 3;
+}
+
+.date-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink-2);
+  border: 1px solid var(--ink);
+  flex: 0 0 auto;
+}
+
+.date-dot-wrap.is-selected .date-dot {
+  background: var(--ink);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.08);
+}
+
+.date-dot-wrap.is-repeat .date-dot {
+  background: var(--bg);
+  border-color: var(--line-strong);
+}
+
+.date-dot-wrap.is-birthday .date-dot.is-birthday-dot {
+  background: var(--surface);
+  border: 1.5px solid var(--ink);
+}
+
+.date-dot-label {
+  font-size: 11px;
+  color: var(--ink);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.date-dot-wrap.is-repeat .date-dot-label {
+  display: none;
+}
+
+.date-dot-label-input {
+  font: inherit;
+  font-size: 11px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--selection);
+  border-radius: 3px;
+  padding: 1px 4px;
+  outline: none;
+  min-width: 100px;
+}
+
+/* Date as a full-height line (when "Important" is set) */
+.date-line {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -378,15 +466,20 @@ button {
   background: var(--date-fill);
   pointer-events: auto;
   cursor: pointer;
-  z-index: 7;
 }
 
-.date-marker.is-selected {
-  width: 3px;
+.date-line.is-repeat {
+  background: rgba(40, 40, 40, 0.35);
+  width: 1px;
+  pointer-events: none;
+}
+
+.date-line.is-selected {
   background: var(--date-selected-fill);
+  width: 3px;
 }
 
-.date-marker-tab {
+.date-line-label {
   position: absolute;
   top: 4px;
   left: 6px;
@@ -397,10 +490,14 @@ button {
   border: 1px solid var(--line-strong);
   border-radius: 3px;
   white-space: nowrap;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
-.date-marker-tab-input {
+.date-line.is-selected .date-line-label {
+  border-color: var(--selection);
+}
+
+.date-line-label-input {
   position: absolute;
   top: 4px;
   left: 6px;
@@ -412,12 +509,21 @@ button {
   border: 1px solid var(--selection);
   border-radius: 3px;
   outline: none;
-  width: 120px;
-  pointer-events: auto;
+  width: 140px;
 }
 
-.date-marker.is-selected .date-marker-tab {
-  border-color: var(--selection);
+/* ----- Cursor date tooltip ----- */
+
+.cursor-tooltip {
+  position: fixed;
+  z-index: 100;
+  background: var(--ink);
+  color: #fff;
+  font-size: 11px;
+  padding: 3px 7px;
+  border-radius: 3px;
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 /* ----- Drag draft preview ----- */
@@ -639,6 +745,20 @@ select.field-input {
   font-size: 12px;
   color: var(--ink-2);
   padding: 6px 0;
+}
+
+.field-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.field-check input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
 }
 
 .danger-btn {

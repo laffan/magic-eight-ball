@@ -12,10 +12,14 @@ A multi-year, Gantt-style planning canvas. Built as a [Tauri 2](https://tauri.ap
 
 ## Interactions
 
-- Click on the canvas to drop a **date** (full-height vertical bar).
-- Click and drag horizontally to draw a **layer** (a Gantt-style span).
-- Drag either end of a layer to resize. Drag the body to move.
-- Click an item to select it; edit its label in the inspector.
+- Click on the canvas to drop a **date** (a labeled dot under the header).
+- Mark a date as **Important** in the inspector to render it as a full-height vertical bar instead.
+- Click and drag horizontally to draw a **span** (a Gantt-style bar).
+- Drag either end of a span to resize. Drag the body to move.
+- Double-click a span's label or a date's label to rename it in place.
+- Dates can repeat **weekly / monthly / annual / custom (every N days)** — ghost copies are drawn at each occurrence.
+- Add a **Person** from the + menu. A person has a birthday (rendered as an annual dot) and can act as a container for any number of spans and dates (assigned via the inspector).
+- A thin red line marks today; a small tooltip near the cursor shows the date you're hovering.
 
 ## Develop
 
