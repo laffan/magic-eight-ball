@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 import type { DateMark, Group, Layer, Person, RepeatKind } from "../types";
 
 export const MONTH_WIDTH = 30;
@@ -11,6 +12,16 @@ export const LANE_ROW_HEIGHT = 36;
 export const LANE_ROW_PAD_TOP = 12;
 export const LANE_MIN_SPAN_ROWS = 1;
 export const LANE_BOTTOM_PAD = 6;
+
+type ExportedSnapshot = {
+  version: number;
+  startYear: number;
+  numYears: number;
+  layers: Layer[];
+  dates: DateMark[];
+  people: Person[];
+  groups: Group[];
+};
 
 type Store = {
   startYear: number;
@@ -27,7 +38,9 @@ type Store = {
 
   addLayer: (
     startMonthIdx: number,
+    startDayOfMonth: number,
     endMonthIdx: number,
+    endDayOfMonth: number,
     opts?: { label?: string; containerId?: string }
   ) => Layer;
   addDate: (
@@ -44,6 +57,9 @@ type Store = {
   updateGroup: (id: string, patch: Partial<Group>) => void;
 
   removeItem: (id: string) => void;
+
+  exportSnapshot: () => ExportedSnapshot;
+  importSnapshot: (data: unknown) => boolean;
 };
 
 let counter = 0;
@@ -52,115 +68,196 @@ const nextId = (prefix: string) =>
 
 const currentYear = new Date().getFullYear();
 
-export const useStore = create<Store>((set) => ({
-  startYear: currentYear,
-  numYears: 5,
-  layers: [],
-  dates: [],
-  people: [],
-  groups: [],
-  selectedId: null,
-  inspectorOpen: true,
+const SNAPSHOT_VERSION = 1;
 
-  setSelected: (id) => set({ selectedId: id }),
-  toggleInspector: () => set((s) => ({ inspectorOpen: !s.inspectorOpen })),
+export const useStore = create<Store>()(
+  persist(
+    (set, get) => ({
+      startYear: currentYear,
+      numYears: 5,
+      layers: [],
+      dates: [],
+      people: [],
+      groups: [],
+      selectedId: null,
+      inspectorOpen: true,
 
-  addLayer: (startMonthIdx, endMonthIdx, opts) => {
-    const lo = Math.min(startMonthIdx, endMonthIdx);
-    const hi = Math.max(startMonthIdx, endMonthIdx);
-    const layer: Layer = {
-      id: nextId("l"),
-      kind: "layer",
-      label: opts?.label ?? "Untitled span",
-      startMonthIdx: lo,
-      endMonthIdx: hi,
-      containerId: opts?.containerId,
-    };
-    set((s) => ({ layers: [...s.layers, layer], selectedId: layer.id }));
-    return layer;
-  },
+      setSelected: (id) => set({ selectedId: id }),
+      toggleInspector: () => set((s) => ({ inspectorOpen: !s.inspectorOpen })),
 
-  addDate: (monthIdx, dayOfMonth, opts) => {
-    const date: DateMark = {
-      id: nextId("d"),
-      kind: "date",
-      label: opts?.label ?? "Untitled date",
-      monthIdx,
-      dayOfMonth: Math.max(1, Math.min(31, dayOfMonth)),
-      important: false,
-      repeat: "none",
-      containerId: opts?.containerId,
-    };
-    set((s) => ({ dates: [...s.dates, date], selectedId: date.id }));
-    return date;
-  },
+      addLayer: (startMonthIdx, startDayOfMonth, endMonthIdx, endDayOfMonth, opts) => {
+        // Normalize so start <= end on the timeline.
+        const startKey = startMonthIdx * 100 + startDayOfMonth;
+        const endKey = endMonthIdx * 100 + endDayOfMonth;
+        const swap = startKey > endKey;
+        const layer: Layer = {
+          id: nextId("l"),
+          kind: "layer",
+          label: opts?.label ?? "Untitled span",
+          startMonthIdx: swap ? endMonthIdx : startMonthIdx,
+          startDayOfMonth: swap ? endDayOfMonth : startDayOfMonth,
+          endMonthIdx: swap ? startMonthIdx : endMonthIdx,
+          endDayOfMonth: swap ? startDayOfMonth : endDayOfMonth,
+          containerId: opts?.containerId,
+        };
+        set((s) => ({ layers: [...s.layers, layer], selectedId: layer.id }));
+        return layer;
+      },
 
-  addPerson: (name) => {
-    const today = new Date();
-    const person: Person = {
-      id: nextId("p"),
-      kind: "person",
-      name: name ?? "Untitled person",
-      birthYear: today.getFullYear() - 30,
-      birthMonth: today.getMonth(),
-      birthDay: today.getDate(),
-    };
-    set((s) => ({ people: [...s.people, person], selectedId: person.id }));
-    return person;
-  },
+      addDate: (monthIdx, dayOfMonth, opts) => {
+        const date: DateMark = {
+          id: nextId("d"),
+          kind: "date",
+          label: opts?.label ?? "Untitled date",
+          monthIdx,
+          dayOfMonth: Math.max(1, Math.min(31, dayOfMonth)),
+          important: false,
+          repeat: "none",
+          containerId: opts?.containerId,
+        };
+        set((s) => ({ dates: [...s.dates, date], selectedId: date.id }));
+        return date;
+      },
 
-  addGroup: (name) => {
-    const group: Group = {
-      id: nextId("g"),
-      kind: "group",
-      name: name ?? "Untitled group",
-      visible: true,
-    };
-    set((s) => ({ groups: [...s.groups, group], selectedId: group.id }));
-    return group;
-  },
+      addPerson: (name) => {
+        const today = new Date();
+        const person: Person = {
+          id: nextId("p"),
+          kind: "person",
+          name: name ?? "Untitled person",
+          birthYear: today.getFullYear() - 30,
+          birthMonth: today.getMonth(),
+          birthDay: today.getDate(),
+        };
+        set((s) => ({ people: [...s.people, person], selectedId: person.id }));
+        return person;
+      },
 
-  updateLayer: (id, patch) =>
-    set((s) => ({
-      layers: s.layers.map((l) => (l.id === id ? { ...l, ...patch } : l)),
-    })),
+      addGroup: (name) => {
+        const group: Group = {
+          id: nextId("g"),
+          kind: "group",
+          name: name ?? "Untitled group",
+          visible: true,
+        };
+        set((s) => ({ groups: [...s.groups, group], selectedId: group.id }));
+        return group;
+      },
 
-  updateDate: (id, patch) =>
-    set((s) => ({
-      dates: s.dates.map((d) => (d.id === id ? { ...d, ...patch } : d)),
-    })),
+      updateLayer: (id, patch) =>
+        set((s) => ({
+          layers: s.layers.map((l) => (l.id === id ? { ...l, ...patch } : l)),
+        })),
 
-  updatePerson: (id, patch) =>
-    set((s) => ({
-      people: s.people.map((p) => (p.id === id ? { ...p, ...patch } : p)),
-    })),
+      updateDate: (id, patch) =>
+        set((s) => ({
+          dates: s.dates.map((d) => (d.id === id ? { ...d, ...patch } : d)),
+        })),
 
-  updateGroup: (id, patch) =>
-    set((s) => ({
-      groups: s.groups.map((g) => (g.id === id ? { ...g, ...patch } : g)),
-    })),
+      updatePerson: (id, patch) =>
+        set((s) => ({
+          people: s.people.map((p) => (p.id === id ? { ...p, ...patch } : p)),
+        })),
 
-  removeItem: (id) =>
-    set((s) => {
-      const isContainer =
-        s.people.some((p) => p.id === id) || s.groups.some((g) => g.id === id);
-      return {
-        layers: s.layers
-          .filter((l) => l.id !== id)
-          .map((l) =>
-            isContainer && l.containerId === id ? { ...l, containerId: undefined } : l
-          ),
-        dates: s.dates
-          .filter((d) => d.id !== id)
-          .map((d) =>
-            isContainer && d.containerId === id ? { ...d, containerId: undefined } : d
-          ),
-        people: s.people.filter((p) => p.id !== id),
-        groups: s.groups.filter((g) => g.id !== id),
-        selectedId: s.selectedId === id ? null : s.selectedId,
-      };
+      updateGroup: (id, patch) =>
+        set((s) => ({
+          groups: s.groups.map((g) => (g.id === id ? { ...g, ...patch } : g)),
+        })),
+
+      removeItem: (id) =>
+        set((s) => {
+          const isContainer =
+            s.people.some((p) => p.id === id) || s.groups.some((g) => g.id === id);
+          return {
+            layers: s.layers
+              .filter((l) => l.id !== id)
+              .map((l) =>
+                isContainer && l.containerId === id ? { ...l, containerId: undefined } : l
+              ),
+            dates: s.dates
+              .filter((d) => d.id !== id)
+              .map((d) =>
+                isContainer && d.containerId === id ? { ...d, containerId: undefined } : d
+              ),
+            people: s.people.filter((p) => p.id !== id),
+            groups: s.groups.filter((g) => g.id !== id),
+            selectedId: s.selectedId === id ? null : s.selectedId,
+          };
+        }),
+
+      exportSnapshot: () => {
+        const s = get();
+        return {
+          version: SNAPSHOT_VERSION,
+          startYear: s.startYear,
+          numYears: s.numYears,
+          layers: s.layers,
+          dates: s.dates,
+          people: s.people,
+          groups: s.groups,
+        };
+      },
+
+      importSnapshot: (raw: unknown) => {
+        if (!raw || typeof raw !== "object") return false;
+        const data = raw as Partial<ExportedSnapshot>;
+        if (!Array.isArray(data.layers) || !Array.isArray(data.dates)) return false;
+        const normLayers = (data.layers as Layer[]).map((l) => ({
+          id: l.id,
+          kind: "layer" as const,
+          label: l.label,
+          startMonthIdx: l.startMonthIdx,
+          startDayOfMonth: l.startDayOfMonth ?? 1,
+          endMonthIdx: l.endMonthIdx,
+          endDayOfMonth: l.endDayOfMonth ?? 28,
+          containerId: l.containerId,
+        }));
+        set({
+          startYear: data.startYear ?? new Date().getFullYear(),
+          numYears: data.numYears ?? 5,
+          layers: normLayers,
+          dates: data.dates,
+          people: Array.isArray(data.people) ? data.people : [],
+          groups: Array.isArray(data.groups) ? data.groups : [],
+          selectedId: null,
+        });
+        return true;
+      },
     }),
-}));
+    {
+      name: "magic-eight-ball",
+      version: 1,
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        startYear: state.startYear,
+        numYears: state.numYears,
+        layers: state.layers,
+        dates: state.dates,
+        people: state.people,
+        groups: state.groups,
+      }),
+      migrate: (persistedState: unknown, version: number) => {
+        const s = (persistedState ?? {}) as Record<string, unknown>;
+        if (version < 1 && Array.isArray(s.layers)) {
+          s.layers = (s.layers as Array<Record<string, unknown>>).map((l) => {
+            if (l.startDayOfMonth != null && l.endDayOfMonth != null) return l;
+            const startYear = (s.startYear as number) ?? new Date().getFullYear();
+            const endMonthIdx = l.endMonthIdx as number;
+            const year = startYear + Math.floor(endMonthIdx / 12);
+            const month = endMonthIdx % 12;
+            const dim = new Date(year, month + 1, 0).getDate();
+            return {
+              ...l,
+              startDayOfMonth: l.startDayOfMonth ?? 1,
+              endDayOfMonth: l.endDayOfMonth ?? dim,
+            };
+          });
+        }
+        return s;
+      },
+    }
+  )
+);
 
 export const totalMonths = (numYears: number) => numYears * MONTHS_PER_YEAR;
 
@@ -187,6 +284,16 @@ export function dateToX(monthIdx: number, dayOfMonth: number, startYear: number)
   const dim = daysInMonth(year, month);
   const clamped = Math.max(1, Math.min(dim, dayOfMonth));
   return monthIdx * MONTH_WIDTH + ((clamped - 1) / dim) * MONTH_WIDTH;
+}
+
+// The right edge of a day cell (i.e. the start of the following day). Useful
+// when computing the visual width of a span whose end day is *inclusive*.
+export function dateToEndX(monthIdx: number, dayOfMonth: number, startYear: number): number {
+  const year = startYear + Math.floor(monthIdx / 12);
+  const month = ((monthIdx % 12) + 12) % 12;
+  const dim = daysInMonth(year, month);
+  const clamped = Math.max(1, Math.min(dim, dayOfMonth));
+  return monthIdx * MONTH_WIDTH + (clamped / dim) * MONTH_WIDTH;
 }
 
 export function xToDateParts(x: number, startYear: number): {
@@ -307,6 +414,8 @@ export type Lane = {
   rowsTopY: number;
   rowsHeight: number;
 };
+
+export const laneKey = (lane: Lane) => lane.id ?? "__default__";
 
 export function computeLanes(input: {
   layers: Layer[];

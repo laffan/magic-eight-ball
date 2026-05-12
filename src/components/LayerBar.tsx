@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { MONTH_WIDTH, useStore } from "../state/store";
+import {
+  MONTH_WIDTH,
+  dateToEndX,
+  dateToX,
+  useStore,
+  xToDateParts,
+} from "../state/store";
 import type { Layer } from "../types";
 import InlineLabelEditor from "./InlineLabelEditor";
 
@@ -16,6 +22,12 @@ type Props = {
 
 type DragMode = "move" | "resize-left" | "resize-right";
 
+type DragStart = {
+  clientX: number;
+  baseLeftX: number;
+  baseRightX: number;
+};
+
 export default function LayerBar({
   layer,
   rowIndex,
@@ -29,60 +41,80 @@ export default function LayerBar({
   const selectedId = useStore((s) => s.selectedId);
   const setSelected = useStore((s) => s.setSelected);
   const updateLayer = useStore((s) => s.updateLayer);
+  const startYear = useStore((s) => s.startYear);
 
   const [dragging, setDragging] = useState<DragMode | null>(null);
   const [editing, setEditing] = useState(false);
-  const startRef = useRef<{ x: number; start: number; end: number } | null>(null);
+  const startRef = useRef<DragStart | null>(null);
 
   const isSelected = selectedId === layer.id;
 
   const top = rowPadTop + rowIndex * rowHeight + 4;
   const height = rowHeight - 8;
-  const left = layer.startMonthIdx * MONTH_WIDTH;
-  const width = (layer.endMonthIdx - layer.startMonthIdx + 1) * MONTH_WIDTH;
+  const left = dateToX(layer.startMonthIdx, layer.startDayOfMonth, startYear);
+  const rightX = dateToEndX(layer.endMonthIdx, layer.endDayOfMonth, startYear);
+  const width = Math.max(2, rightX - left);
+
+  const contentWidth = monthsTotal * MONTH_WIDTH;
 
   const onMouseDown = (mode: DragMode) => (e: React.MouseEvent) => {
     if (editing) return;
-    e.stopPropagation();
     if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
     setSelected(layer.id);
     setDragging(mode);
     onDragChange?.(layer.id, true);
     startRef.current = {
-      x: e.clientX,
-      start: layer.startMonthIdx,
-      end: layer.endMonthIdx,
+      clientX: e.clientX,
+      baseLeftX: dateToX(layer.startMonthIdx, layer.startDayOfMonth, startYear),
+      baseRightX: dateToEndX(layer.endMonthIdx, layer.endDayOfMonth, startYear),
     };
   };
 
   useEffect(() => {
     if (!dragging) return;
 
+    // Suppress text selection while a span drag is in progress.
+    const prevUserSelect = document.body.style.userSelect;
+    document.body.style.userSelect = "none";
+
     const onMove = (e: MouseEvent) => {
       if (!startRef.current) return;
-      const dx = e.clientX - startRef.current.x;
-      const dMonths = Math.round(dx / MONTH_WIDTH);
-      const { start, end } = startRef.current;
+      const { clientX, baseLeftX, baseRightX } = startRef.current;
+      const dx = e.clientX - clientX;
 
       if (dragging === "move") {
-        const span = end - start;
-        let ns = start + dMonths;
-        let ne = end + dMonths;
-        if (ns < 0) {
-          ns = 0;
-          ne = span;
-        }
-        if (ne > monthsTotal - 1) {
-          ne = monthsTotal - 1;
-          ns = ne - span;
-        }
-        updateLayer(layer.id, { startMonthIdx: ns, endMonthIdx: ne });
+        const spanWidth = baseRightX - baseLeftX;
+        let newLeftX = baseLeftX + dx;
+        if (newLeftX < 0) newLeftX = 0;
+        if (newLeftX + spanWidth > contentWidth) newLeftX = contentWidth - spanWidth;
+        const newRightX = newLeftX + spanWidth;
+        const startParts = xToDateParts(newLeftX, startYear);
+        const endParts = xToDateParts(Math.max(0, newRightX - 0.5), startYear);
+        updateLayer(layer.id, {
+          startMonthIdx: startParts.monthIdx,
+          startDayOfMonth: startParts.day,
+          endMonthIdx: endParts.monthIdx,
+          endDayOfMonth: endParts.day,
+        });
       } else if (dragging === "resize-left") {
-        const ns = Math.min(end, Math.max(0, start + dMonths));
-        updateLayer(layer.id, { startMonthIdx: ns });
+        const newLeftX = Math.max(0, Math.min(baseRightX - 1, baseLeftX + dx));
+        const parts = xToDateParts(newLeftX, startYear);
+        updateLayer(layer.id, {
+          startMonthIdx: parts.monthIdx,
+          startDayOfMonth: parts.day,
+        });
       } else if (dragging === "resize-right") {
-        const ne = Math.max(start, Math.min(monthsTotal - 1, end + dMonths));
-        updateLayer(layer.id, { endMonthIdx: ne });
+        const newRightX = Math.max(
+          baseLeftX + 1,
+          Math.min(contentWidth, baseRightX + dx)
+        );
+        const parts = xToDateParts(Math.max(0, newRightX - 0.5), startYear);
+        updateLayer(layer.id, {
+          endMonthIdx: parts.monthIdx,
+          endDayOfMonth: parts.day,
+        });
       }
     };
 
@@ -91,6 +123,7 @@ export default function LayerBar({
       onDragChange?.(layer.id, false);
       setDragging(null);
       startRef.current = null;
+      document.body.style.userSelect = prevUserSelect;
     };
 
     window.addEventListener("mousemove", onMove);
@@ -98,8 +131,17 @@ export default function LayerBar({
     return () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
+      document.body.style.userSelect = prevUserSelect;
     };
-  }, [dragging, layer.id, monthsTotal, onDragChange, onDragEnd, updateLayer]);
+  }, [
+    dragging,
+    layer.id,
+    contentWidth,
+    onDragChange,
+    onDragEnd,
+    startYear,
+    updateLayer,
+  ]);
 
   return (
     <div

@@ -1,10 +1,11 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   HEADER_HEIGHT,
   LANE_ROW_HEIGHT,
   LANE_ROW_PAD_TOP,
   MONTH_WIDTH,
   computeLanes,
+  laneKey,
   totalMonths,
   useStore,
   xToDateParts,
@@ -51,6 +52,8 @@ export default function Canvas() {
   const [cursor, setCursor] = useState<Cursor>(null);
   const [hoverSpanId, setHoverSpanId] = useState<string | null>(null);
   const [dragSpanId, setDragSpanId] = useState<string | null>(null);
+  const [dragDateId, setDragDateId] = useState<string | null>(null);
+  const [dropLaneKey, setDropLaneKey] = useState<string | null>(null);
 
   const onLayerHoverChange = useCallback((id: string, hovered: boolean) => {
     if (hovered) setHoverSpanId(id);
@@ -60,6 +63,11 @@ export default function Canvas() {
   const onLayerDragChange = useCallback((id: string, isDragging: boolean) => {
     if (isDragging) setDragSpanId(id);
     else setDragSpanId((cur) => (cur === id ? null : cur));
+  }, []);
+
+  const onDateDragChange = useCallback((id: string, isDragging: boolean) => {
+    if (isDragging) setDragDateId(id);
+    else setDragDateId((cur) => (cur === id ? null : cur));
   }, []);
 
   const monthsTotal = totalMonths(numYears);
@@ -102,6 +110,33 @@ export default function Canvas() {
     [laneAtContentY]
   );
 
+  // Track the lane under the cursor while a span or date is being dragged so
+  // we can highlight it as the drop target.
+  useEffect(() => {
+    if (!dragSpanId && !dragDateId) {
+      setDropLaneKey(null);
+      return;
+    }
+    const onMove = (e: MouseEvent) => {
+      const el = contentRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const inside =
+        e.clientX >= rect.left &&
+        e.clientX <= rect.right &&
+        e.clientY >= rect.top &&
+        e.clientY <= rect.bottom;
+      if (!inside) {
+        setDropLaneKey(null);
+        return;
+      }
+      const lane = laneAtContentY(e.clientY - rect.top);
+      setDropLaneKey(lane ? laneKey(lane) : null);
+    };
+    window.addEventListener("mousemove", onMove);
+    return () => window.removeEventListener("mousemove", onMove);
+  }, [dragSpanId, dragDateId, laneAtContentY]);
+
   const onSpanDragEnd = (layerId: string, clientY: number) => {
     const containerId = containerAtClientY(clientY);
     updateLayer(layerId, { containerId });
@@ -121,6 +156,8 @@ export default function Canvas() {
 
     const lane = laneAtContentY(y);
     if (!lane) return;
+
+    e.preventDefault();
 
     const inDatesStrip = y < lane.rowsTopY;
     const rowIndex = inDatesStrip
@@ -158,9 +195,15 @@ export default function Canvas() {
     if (distance >= MIN_DRAG_PX && !draft.inDatesStrip) {
       const lo = Math.min(draft.startX, draft.currentX);
       const hi = Math.max(draft.startX, draft.currentX);
-      const startMonth = Math.max(0, Math.min(monthsTotal - 1, Math.floor(lo / MONTH_WIDTH)));
-      const endMonth = Math.max(0, Math.min(monthsTotal - 1, Math.floor(hi / MONTH_WIDTH)));
-      addLayer(startMonth, endMonth, { containerId: draft.laneId ?? undefined });
+      const startParts = xToDateParts(lo, startYear);
+      const endParts = xToDateParts(Math.max(0, hi - 0.5), startYear);
+      addLayer(
+        startParts.monthIdx,
+        startParts.day,
+        endParts.monthIdx,
+        endParts.day,
+        { containerId: draft.laneId ?? undefined }
+      );
     } else {
       const parts = xToDateParts(draft.startX, startYear);
       addDate(parts.monthIdx, parts.day, { containerId: draft.laneId ?? undefined });
@@ -179,11 +222,8 @@ export default function Canvas() {
     if (!lane) return null;
     const lo = Math.min(draft.startX, draft.currentX);
     const hi = Math.max(draft.startX, draft.currentX);
-    const left = Math.floor(lo / MONTH_WIDTH) * MONTH_WIDTH;
-    const width =
-      (Math.floor(hi / MONTH_WIDTH) - Math.floor(lo / MONTH_WIDTH) + 1) * MONTH_WIDTH;
     const top = lane.rowsTopY + LANE_ROW_PAD_TOP + draft.rowIndex * LANE_ROW_HEIGHT + 4;
-    return { left, top, width };
+    return { left: lo, top, width: Math.max(2, hi - lo) };
   })();
 
   const draftDateX = (() => {
@@ -212,11 +252,12 @@ export default function Canvas() {
           <TimelineGrid />
 
           {lanes.map((lane) => {
-            const key = lane.id ?? "_default";
+            const key = laneKey(lane);
+            const isDrop = dropLaneKey === key;
             return (
               <div
                 key={key}
-                className={`lane lane-${lane.kind}`}
+                className={`lane lane-${lane.kind} ${isDrop ? "is-drop-target" : ""}`}
                 style={{ top: lane.topY, height: lane.height }}
               >
                 <div
@@ -225,7 +266,7 @@ export default function Canvas() {
                 >
                   {lane.kind !== "default" && (
                     <span className="lane-label" data-interactive>
-                      {lane.label || " "}
+                      {lane.label || " "}
                     </span>
                   )}
                   {lane.dotDates.map((d) => (
@@ -235,6 +276,7 @@ export default function Canvas() {
                       mode="dot"
                       yCenter={lane.datesHeight / 2}
                       onDragEnd={onDateDragEnd}
+                      onDragChange={onDateDragChange}
                     />
                   ))}
                   {lane.kind === "person" && lane.person && (
@@ -268,7 +310,6 @@ export default function Canvas() {
 
           <TodayMarker />
 
-          {/* Important dates render as full-height lines on top of everything */}
           <div className="dates-lines">
             {importantDates.map((d) => (
               <DateMarker key={d.id} date={d} mode="line" />
@@ -297,10 +338,6 @@ export default function Canvas() {
 
       {cursor &&
         (() => {
-          // Span to show in the tooltip, in priority order:
-          //  1. existing span currently being dragged (move/resize)
-          //  2. existing span hovered by the cursor
-          //  3. the in-progress draft if the user is drawing a new span
           let span: { startMonthIdx: number; endMonthIdx: number } | null = null;
           const activeId = dragSpanId ?? hoverSpanId;
           if (activeId) {

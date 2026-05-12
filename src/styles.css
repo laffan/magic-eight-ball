@@ -80,6 +80,7 @@ button {
 /* ----- Left layer sidebar ----- */
 
 .layer-sidebar {
+  position: relative;
   border-right: 1px solid var(--line);
   background: var(--surface);
   display: flex;
@@ -234,6 +235,53 @@ button {
   cursor: default;
 }
 
+/* Sidebar footer (Export / Import) */
+
+.sidebar-footer {
+  display: flex;
+  gap: 6px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  flex: 0 0 auto;
+}
+
+.sidebar-footer-btn {
+  flex: 1;
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 11px;
+  color: var(--ink-2);
+  cursor: pointer;
+  text-align: center;
+}
+
+.sidebar-footer-btn:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+/* Drag ghost floats with the cursor while a sidebar item is being dragged. */
+
+.sidebar-drag-ghost {
+  position: fixed;
+  z-index: 1000;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px;
+  background: var(--surface);
+  border: 1px solid var(--ink);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--ink);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+  max-width: 240px;
+}
+
 .sidebar-item-main {
   flex: 1;
   background: transparent;
@@ -379,6 +427,11 @@ button {
 .lane-person,
 .lane-group {
   border-top: 1px solid var(--line);
+}
+
+.lane.is-drop-target {
+  background: rgba(0, 0, 0, 0.045);
+  box-shadow: inset 2px 0 0 var(--ink-2);
 }
 
 .lane-dates-strip {

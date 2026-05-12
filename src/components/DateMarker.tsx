@@ -13,9 +13,10 @@ type Props = {
   mode: "dot" | "line";
   yCenter?: number;
   onDragEnd?: (id: string, clientY: number) => void;
+  onDragChange?: (id: string, dragging: boolean) => void;
 };
 
-export default function DateMarker({ date, mode, yCenter, onDragEnd }: Props) {
+export default function DateMarker({ date, mode, yCenter, onDragEnd, onDragChange }: Props) {
   const selectedId = useStore((s) => s.selectedId);
   const setSelected = useStore((s) => s.setSelected);
   const updateDate = useStore((s) => s.updateDate);
@@ -42,9 +43,11 @@ export default function DateMarker({ date, mode, yCenter, onDragEnd }: Props) {
   const startDotDrag = (e: React.MouseEvent) => {
     if (e.button !== 0) return;
     if (editing) return;
+    e.preventDefault();
     e.stopPropagation();
     setSelected(date.id);
     setDragging(true);
+    onDragChange?.(date.id, true);
     dragStartRef.current = {
       clientX: e.clientX,
       monthIdx: date.monthIdx,
@@ -54,6 +57,8 @@ export default function DateMarker({ date, mode, yCenter, onDragEnd }: Props) {
 
   useEffect(() => {
     if (!dragging) return;
+    const prevUserSelect = document.body.style.userSelect;
+    document.body.style.userSelect = "none";
     const onMove = (e: MouseEvent) => {
       if (!dragStartRef.current) return;
       const baseX = dateToX(
@@ -67,16 +72,19 @@ export default function DateMarker({ date, mode, yCenter, onDragEnd }: Props) {
     };
     const onUp = (e: MouseEvent) => {
       if (onDragEnd) onDragEnd(date.id, e.clientY);
+      onDragChange?.(date.id, false);
       setDragging(false);
       dragStartRef.current = null;
+      document.body.style.userSelect = prevUserSelect;
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
     return () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
+      document.body.style.userSelect = prevUserSelect;
     };
-  }, [dragging, date.id, onDragEnd, startYear, updateDate]);
+  }, [dragging, date.id, onDragChange, onDragEnd, startYear, updateDate]);
 
   if (mode === "line") {
     return (

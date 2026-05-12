@@ -3,7 +3,9 @@ export type Layer = {
   kind: "layer";
   label: string;
   startMonthIdx: number;
+  startDayOfMonth: number;
   endMonthIdx: number;
+  endDayOfMonth: number;
   containerId?: string;
 };
 

@@ -40,9 +40,9 @@ export default function Inspector() {
   const updateGroup = useStore((s) => s.updateGroup);
   const removeItem = useStore((s) => s.removeItem);
 
-  const formatMonth = (idx: number) => {
-    const year = startYear + Math.floor(idx / MONTHS_PER_YEAR);
-    return `${monthLabel(idx)} ${year}`;
+  const formatDate = (monthIdx: number, day: number) => {
+    const year = startYear + Math.floor(monthIdx / MONTHS_PER_YEAR);
+    return `${monthLabel(monthIdx)} ${day}, ${year}`;
   };
 
   const containerOptions = (
@@ -103,11 +103,15 @@ export default function Inspector() {
               <div className="field-row">
                 <div className="field">
                   <span className="field-label">Start</span>
-                  <div className="field-value">{formatMonth(item.startMonthIdx)}</div>
+                  <div className="field-value">
+                    {formatDate(item.startMonthIdx, item.startDayOfMonth)}
+                  </div>
                 </div>
                 <div className="field">
                   <span className="field-label">End</span>
-                  <div className="field-value">{formatMonth(item.endMonthIdx)}</div>
+                  <div className="field-value">
+                    {formatDate(item.endMonthIdx, item.endDayOfMonth)}
+                  </div>
                 </div>
               </div>
 
@@ -145,8 +149,7 @@ export default function Inspector() {
               <div className="field">
                 <span className="field-label">Date</span>
                 <div className="field-value">
-                  {monthLabel(item.monthIdx % MONTHS_PER_YEAR)} {item.dayOfMonth},{" "}
-                  {startYear + Math.floor(item.monthIdx / MONTHS_PER_YEAR)}
+                  {formatDate(item.monthIdx, item.dayOfMonth)}
                 </div>
               </div>
 

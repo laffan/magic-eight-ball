@@ -34,7 +34,7 @@ export default function AddMenu() {
           <button
             className="add-menu-item"
             onClick={() => {
-              addLayer(nowMonthIdx, nowMonthIdx + 5);
+              addLayer(nowMonthIdx, 1, nowMonthIdx + 5, 28);
               setOpen(false);
             }}
           >

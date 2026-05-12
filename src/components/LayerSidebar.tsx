@@ -1,15 +1,36 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { monthLabel, useStore } from "../state/store";
 import type { DateMark, Group, Layer, Person } from "../types";
 import InlineLabelEditor from "./InlineLabelEditor";
 import { EyeHidden, EyeVisible } from "./icons/EyeIcons";
 
-type DragItem = { kind: "layer" | "date"; id: string };
+const DRAG_THRESHOLD = 5;
 
-// Drop targets are identified by string keys. Container ids are used
-// directly; the orphan section headers use these reserved keys.
+// The "Spans" and "Dates" section headers represent the orphan drop targets.
 const ORPHAN_SPANS = "__orphan_spans__";
 const ORPHAN_DATES = "__orphan_dates__";
+
+type DragKind = "layer" | "date";
+type DragState = {
+  kind: DragKind;
+  id: string;
+  label: string;
+  glyph: string;
+  startX: number;
+  startY: number;
+  clientX: number;
+  clientY: number;
+  isDragging: boolean;
+};
+
+type DropKind = "container" | "orphan-spans" | "orphan-dates";
+
+function acceptsDrop(dragKind: DragKind, dropKind: DropKind): boolean {
+  if (dropKind === "container") return true;
+  if (dropKind === "orphan-spans") return dragKind === "layer";
+  if (dropKind === "orphan-dates") return dragKind === "date";
+  return false;
+}
 
 export default function LayerSidebar() {
   const layers = useStore((s) => s.layers);
@@ -22,9 +43,89 @@ export default function LayerSidebar() {
   const updateDate = useStore((s) => s.updateDate);
   const updatePerson = useStore((s) => s.updatePerson);
   const updateGroup = useStore((s) => s.updateGroup);
+  const exportSnapshot = useStore((s) => s.exportSnapshot);
+  const importSnapshot = useStore((s) => s.importSnapshot);
 
-  const [drag, setDrag] = useState<DragItem | null>(null);
+  const [drag, setDrag] = useState<DragState | null>(null);
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Global mousemove/mouseup driving the custom DnD. We use this rather than
+  // HTML5 drag-and-drop because HTML5 DnD is unreliable inside Tauri webviews.
+  useEffect(() => {
+    if (!drag) return;
+    const onMove = (e: MouseEvent) => {
+      const dx = e.clientX - drag.startX;
+      const dy = e.clientY - drag.startY;
+      const isDragging =
+        drag.isDragging ||
+        Math.abs(dx) >= DRAG_THRESHOLD ||
+        Math.abs(dy) >= DRAG_THRESHOLD;
+
+      setDrag({ ...drag, clientX: e.clientX, clientY: e.clientY, isDragging });
+
+      if (isDragging) {
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        const target = el?.closest("[data-drop-target-id]") as HTMLElement | null;
+        if (target) {
+          const kind = target.getAttribute("data-drop-target-kind") as DropKind | null;
+          if (kind && acceptsDrop(drag.kind, kind)) {
+            setDropTargetKey(target.getAttribute("data-drop-target-id"));
+            return;
+          }
+        }
+        setDropTargetKey(null);
+      }
+    };
+
+    const onUp = (e: MouseEvent) => {
+      if (drag.isDragging) {
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        const target = el?.closest("[data-drop-target-id]") as HTMLElement | null;
+        if (target) {
+          const kind = target.getAttribute("data-drop-target-kind") as DropKind | null;
+          const id = target.getAttribute("data-drop-target-id");
+          if (kind && id && acceptsDrop(drag.kind, kind)) {
+            let containerId: string | undefined;
+            if (kind === "container") containerId = id;
+            else containerId = undefined; // orphan
+            if (drag.kind === "layer") updateLayer(drag.id, { containerId });
+            else updateDate(drag.id, { containerId });
+          }
+        }
+      }
+      setDrag(null);
+      setDropTargetKey(null);
+    };
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [drag, updateDate, updateLayer]);
+
+  const startDrag = (
+    e: React.MouseEvent,
+    kind: DragKind,
+    id: string,
+    label: string,
+    glyph: string
+  ) => {
+    if (e.button !== 0) return;
+    setDrag({
+      kind,
+      id,
+      label,
+      glyph,
+      startX: e.clientX,
+      startY: e.clientY,
+      clientX: e.clientX,
+      clientY: e.clientY,
+      isDragging: false,
+    });
+  };
 
   const empty =
     layers.length === 0 &&
@@ -37,43 +138,36 @@ export default function LayerSidebar() {
   const orphanLayers = layers.filter((l) => !l.containerId);
   const orphanDates = dates.filter((d) => !d.containerId);
 
-  const acceptsDrop = (target: { key: string; kind: "container" | "orphan-spans" | "orphan-dates" }) => {
-    if (!drag) return false;
-    if (target.kind === "container") return true;
-    if (target.kind === "orphan-spans") return drag.kind === "layer";
-    if (target.kind === "orphan-dates") return drag.kind === "date";
-    return false;
+  const handleExport = () => {
+    const snapshot = exportSnapshot();
+    const json = JSON.stringify(snapshot, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `magic-eight-ball-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
-  const doDrop = (containerId: string | undefined) => {
-    if (!drag) return;
-    if (drag.kind === "layer") updateLayer(drag.id, { containerId });
-    if (drag.kind === "date") updateDate(drag.id, { containerId });
-    setDrag(null);
-    setDropTargetKey(null);
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(String(reader.result ?? ""));
+        const ok = importSnapshot(data);
+        if (!ok) alert("Could not import: file shape didn't look right.");
+      } catch {
+        alert("Could not import: invalid JSON.");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
   };
-
-  const dropProps = (
-    key: string,
-    kind: "container" | "orphan-spans" | "orphan-dates",
-    containerId: string | undefined
-  ) => ({
-    onDragOver: (e: React.DragEvent) => {
-      if (!acceptsDrop({ key, kind })) return;
-      e.preventDefault();
-      e.dataTransfer.dropEffect = "move";
-      setDropTargetKey(key);
-    },
-    onDragLeave: () => {
-      setDropTargetKey((cur) => (cur === key ? null : cur));
-    },
-    onDrop: (e: React.DragEvent) => {
-      if (!acceptsDrop({ key, kind })) return;
-      e.preventDefault();
-      doDrop(containerId);
-    },
-    "data-droptarget": dropTargetKey === key ? "true" : undefined,
-  });
 
   return (
     <aside className="layer-sidebar">
@@ -100,10 +194,11 @@ export default function LayerSidebar() {
                   dates={datesIn(p.id)}
                   onSelect={setSelected}
                   onRename={(name) => updatePerson(p.id, { name })}
-                  setDrag={setDrag}
+                  onRenameLayer={(id, label) => updateLayer(id, { label })}
+                  onRenameDate={(id, label) => updateDate(id, { label })}
+                  startDrag={startDrag}
                   drag={drag}
                   dropTargetKey={dropTargetKey}
-                  dropProps={dropProps}
                 />
               ))}
             </ul>
@@ -123,11 +218,12 @@ export default function LayerSidebar() {
                   dates={datesIn(g.id)}
                   onSelect={setSelected}
                   onRename={(name) => updateGroup(g.id, { name })}
+                  onRenameLayer={(id, label) => updateLayer(id, { label })}
+                  onRenameDate={(id, label) => updateDate(id, { label })}
                   onToggleVisible={() => updateGroup(g.id, { visible: !g.visible })}
-                  setDrag={setDrag}
+                  startDrag={startDrag}
                   drag={drag}
                   dropTargetKey={dropTargetKey}
-                  dropProps={dropProps}
                 />
               ))}
             </ul>
@@ -136,8 +232,11 @@ export default function LayerSidebar() {
 
         <section className="sidebar-section">
           <h4
-            className="sidebar-section-title is-drop-zone"
-            {...dropProps(ORPHAN_SPANS, "orphan-spans", undefined)}
+            className={`sidebar-section-title is-drop-zone ${
+              dropTargetKey === ORPHAN_SPANS ? "is-drop-target" : ""
+            }`}
+            data-drop-target-id={ORPHAN_SPANS}
+            data-drop-target-kind="orphan-spans"
           >
             Spans
           </h4>
@@ -149,8 +248,8 @@ export default function LayerSidebar() {
                 selected={selectedId === l.id}
                 onSelect={() => setSelected(l.id)}
                 onRename={(label) => updateLayer(l.id, { label })}
-                setDrag={setDrag}
-                isDragging={drag?.kind === "layer" && drag.id === l.id}
+                startDrag={startDrag}
+                isDragging={drag?.kind === "layer" && drag.id === l.id && drag.isDragging}
               />
             ))}
           </ul>
@@ -158,8 +257,11 @@ export default function LayerSidebar() {
 
         <section className="sidebar-section">
           <h4
-            className="sidebar-section-title is-drop-zone"
-            {...dropProps(ORPHAN_DATES, "orphan-dates", undefined)}
+            className={`sidebar-section-title is-drop-zone ${
+              dropTargetKey === ORPHAN_DATES ? "is-drop-target" : ""
+            }`}
+            data-drop-target-id={ORPHAN_DATES}
+            data-drop-target-kind="orphan-dates"
           >
             Dates
           </h4>
@@ -171,26 +273,55 @@ export default function LayerSidebar() {
                 selected={selectedId === d.id}
                 onSelect={() => setSelected(d.id)}
                 onRename={(label) => updateDate(d.id, { label })}
-                setDrag={setDrag}
-                isDragging={drag?.kind === "date" && drag.id === d.id}
+                startDrag={startDrag}
+                isDragging={drag?.kind === "date" && drag.id === d.id && drag.isDragging}
               />
             ))}
           </ul>
         </section>
       </div>
+
+      <footer className="sidebar-footer">
+        <button className="sidebar-footer-btn" onClick={handleExport}>
+          Export JSON
+        </button>
+        <button
+          className="sidebar-footer-btn"
+          onClick={() => importInputRef.current?.click()}
+        >
+          Import JSON
+        </button>
+        <input
+          ref={importInputRef}
+          type="file"
+          accept="application/json,.json"
+          style={{ display: "none" }}
+          onChange={handleImportFile}
+        />
+      </footer>
+
+      {drag?.isDragging && (
+        <div
+          className="sidebar-drag-ghost"
+          style={{ left: drag.clientX + 12, top: drag.clientY + 8 }}
+        >
+          <span className="sidebar-item-glyph">{drag.glyph}</span>
+          <span className="sidebar-item-label">{drag.label}</span>
+        </div>
+      )}
     </aside>
   );
 }
 
 // ----- Shared row types -----
 
-type DropPropsFn = (
-  key: string,
-  kind: "container" | "orphan-spans" | "orphan-dates",
-  containerId: string | undefined
-) => Record<string, unknown>;
-
-type SetDrag = (v: DragItem | null) => void;
+type StartDrag = (
+  e: React.MouseEvent,
+  kind: DragKind,
+  id: string,
+  label: string,
+  glyph: string
+) => void;
 
 // ----- Person container row -----
 
@@ -201,10 +332,11 @@ function PersonGroup({
   dates,
   onSelect,
   onRename,
-  setDrag,
+  onRenameLayer,
+  onRenameDate,
+  startDrag,
   drag,
   dropTargetKey,
-  dropProps,
 }: {
   person: Person;
   selectedId: string | null;
@@ -212,16 +344,21 @@ function PersonGroup({
   dates: DateMark[];
   onSelect: (id: string) => void;
   onRename: (name: string) => void;
-  setDrag: SetDrag;
-  drag: DragItem | null;
+  onRenameLayer: (id: string, label: string) => void;
+  onRenameDate: (id: string, label: string) => void;
+  startDrag: StartDrag;
+  drag: DragState | null;
   dropTargetKey: string | null;
-  dropProps: DropPropsFn;
 }) {
   const [editing, setEditing] = useState(false);
   const isDropTarget = dropTargetKey === person.id;
 
   return (
-    <li className="sidebar-group" {...dropProps(person.id, "container", person.id)}>
+    <li
+      className="sidebar-group"
+      data-drop-target-id={person.id}
+      data-drop-target-kind="container"
+    >
       <button
         className={`sidebar-item ${selectedId === person.id ? "is-selected" : ""} ${
           isDropTarget ? "is-drop-target" : ""
@@ -253,11 +390,9 @@ function PersonGroup({
               layer={l}
               selected={selectedId === l.id}
               onSelect={() => onSelect(l.id)}
-              onRename={(label) =>
-                useStore.getState().updateLayer(l.id, { label })
-              }
-              setDrag={setDrag}
-              isDragging={drag?.kind === "layer" && drag.id === l.id}
+              onRename={(label) => onRenameLayer(l.id, label)}
+              startDrag={startDrag}
+              isDragging={drag?.kind === "layer" && drag.id === l.id && drag.isDragging}
             />
           ))}
           {dates.map((d) => (
@@ -266,9 +401,9 @@ function PersonGroup({
               date={d}
               selected={selectedId === d.id}
               onSelect={() => onSelect(d.id)}
-              onRename={(label) => useStore.getState().updateDate(d.id, { label })}
-              setDrag={setDrag}
-              isDragging={drag?.kind === "date" && drag.id === d.id}
+              onRename={(label) => onRenameDate(d.id, label)}
+              startDrag={startDrag}
+              isDragging={drag?.kind === "date" && drag.id === d.id && drag.isDragging}
             />
           ))}
         </ul>
@@ -286,11 +421,12 @@ function GroupSection({
   dates,
   onSelect,
   onRename,
+  onRenameLayer,
+  onRenameDate,
   onToggleVisible,
-  setDrag,
+  startDrag,
   drag,
   dropTargetKey,
-  dropProps,
 }: {
   group: Group;
   selectedId: string | null;
@@ -298,11 +434,12 @@ function GroupSection({
   dates: DateMark[];
   onSelect: (id: string) => void;
   onRename: (name: string) => void;
+  onRenameLayer: (id: string, label: string) => void;
+  onRenameDate: (id: string, label: string) => void;
   onToggleVisible: () => void;
-  setDrag: SetDrag;
-  drag: DragItem | null;
+  startDrag: StartDrag;
+  drag: DragState | null;
   dropTargetKey: string | null;
-  dropProps: DropPropsFn;
 }) {
   const [editing, setEditing] = useState(false);
   const isDropTarget = dropTargetKey === group.id;
@@ -310,7 +447,8 @@ function GroupSection({
   return (
     <li
       className={`sidebar-group ${group.visible ? "" : "is-hidden"}`}
-      {...dropProps(group.id, "container", group.id)}
+      data-drop-target-id={group.id}
+      data-drop-target-kind="container"
     >
       <div
         className={`sidebar-row ${selectedId === group.id ? "is-selected" : ""} ${
@@ -354,11 +492,9 @@ function GroupSection({
               layer={l}
               selected={selectedId === l.id}
               onSelect={() => onSelect(l.id)}
-              onRename={(label) =>
-                useStore.getState().updateLayer(l.id, { label })
-              }
-              setDrag={setDrag}
-              isDragging={drag?.kind === "layer" && drag.id === l.id}
+              onRename={(label) => onRenameLayer(l.id, label)}
+              startDrag={startDrag}
+              isDragging={drag?.kind === "layer" && drag.id === l.id && drag.isDragging}
             />
           ))}
           {dates.map((d) => (
@@ -367,9 +503,9 @@ function GroupSection({
               date={d}
               selected={selectedId === d.id}
               onSelect={() => onSelect(d.id)}
-              onRename={(label) => useStore.getState().updateDate(d.id, { label })}
-              setDrag={setDrag}
-              isDragging={drag?.kind === "date" && drag.id === d.id}
+              onRename={(label) => onRenameDate(d.id, label)}
+              startDrag={startDrag}
+              isDragging={drag?.kind === "date" && drag.id === d.id && drag.isDragging}
             />
           ))}
         </ul>
@@ -385,30 +521,27 @@ function LayerRow({
   selected,
   onSelect,
   onRename,
-  setDrag,
+  startDrag,
   isDragging,
 }: {
   layer: Layer;
   selected: boolean;
   onSelect: () => void;
   onRename: (label: string) => void;
-  setDrag: SetDrag;
+  startDrag: StartDrag;
   isDragging: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   return (
     <li>
       <button
-        draggable={!editing}
-        onDragStart={(e) => {
-          e.dataTransfer.effectAllowed = "move";
-          e.dataTransfer.setData("text/plain", `layer:${layer.id}`);
-          setDrag({ kind: "layer", id: layer.id });
-        }}
-        onDragEnd={() => setDrag(null)}
         className={`sidebar-item ${selected ? "is-selected" : ""} ${
           isDragging ? "is-dragging-source" : ""
         }`}
+        onMouseDown={(e) => {
+          if (editing) return;
+          startDrag(e, "layer", layer.id, layer.label, "▭");
+        }}
         onClick={onSelect}
         onDoubleClick={() => setEditing(true)}
       >
@@ -439,35 +572,33 @@ function DateRow({
   selected,
   onSelect,
   onRename,
-  setDrag,
+  startDrag,
   isDragging,
 }: {
   date: DateMark;
   selected: boolean;
   onSelect: () => void;
   onRename: (label: string) => void;
-  setDrag: SetDrag;
+  startDrag: StartDrag;
   isDragging: boolean;
 }) {
   const [editing, setEditing] = useState(false);
+  const glyph = date.important ? "│" : "•";
   return (
     <li>
       <button
-        draggable={!editing}
-        onDragStart={(e) => {
-          e.dataTransfer.effectAllowed = "move";
-          e.dataTransfer.setData("text/plain", `date:${date.id}`);
-          setDrag({ kind: "date", id: date.id });
-        }}
-        onDragEnd={() => setDrag(null)}
         className={`sidebar-item ${selected ? "is-selected" : ""} ${
           isDragging ? "is-dragging-source" : ""
         }`}
+        onMouseDown={(e) => {
+          if (editing) return;
+          startDrag(e, "date", date.id, date.label, glyph);
+        }}
         onClick={onSelect}
         onDoubleClick={() => setEditing(true)}
         title={`${monthLabel(date.monthIdx % 12)} ${date.dayOfMonth}`}
       >
-        <span className="sidebar-item-glyph">{date.important ? "│" : "•"}</span>
+        <span className="sidebar-item-glyph">{glyph}</span>
         {editing ? (
           <InlineLabelEditor
             className="sidebar-edit-input"
