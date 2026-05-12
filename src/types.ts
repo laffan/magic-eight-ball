@@ -4,7 +4,7 @@ export type Layer = {
   label: string;
   startMonthIdx: number;
   endMonthIdx: number;
-  personId?: string;
+  containerId?: string;
 };
 
 export type RepeatKind = "none" | "weekly" | "monthly" | "annual" | "custom";
@@ -18,15 +18,24 @@ export type DateMark = {
   important: boolean;
   repeat?: RepeatKind;
   repeatEveryDays?: number;
-  personId?: string;
+  containerId?: string;
 };
 
 export type Person = {
   id: string;
   kind: "person";
   name: string;
+  birthYear: number;
   birthMonth: number; // 0..11
   birthDay: number; // 1..31
 };
 
-export type Item = Layer | DateMark | Person;
+export type Group = {
+  id: string;
+  kind: "group";
+  name: string;
+  visible: boolean;
+};
+
+export type Container = Person | Group;
+export type Item = Layer | DateMark | Person | Group;

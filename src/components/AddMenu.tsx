@@ -6,6 +6,7 @@ export default function AddMenu() {
   const addLayer = useStore((s) => s.addLayer);
   const addDate = useStore((s) => s.addDate);
   const addPerson = useStore((s) => s.addPerson);
+  const addGroup = useStore((s) => s.addGroup);
   const startYear = useStore((s) => s.startYear);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -56,6 +57,15 @@ export default function AddMenu() {
             }}
           >
             New person
+          </button>
+          <button
+            className="add-menu-item"
+            onClick={() => {
+              addGroup();
+              setOpen(false);
+            }}
+          >
+            New group
           </button>
           <div className="add-menu-hint">
             Tip: click &amp; drag on the canvas to draw a span, or click for a date.

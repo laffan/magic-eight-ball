@@ -161,9 +161,60 @@ button {
   background: var(--surface-2);
 }
 
-.sidebar-item.is-selected {
+.sidebar-item.is-selected,
+.sidebar-row.is-selected {
   background: var(--surface-2);
   border-left-color: var(--selection);
+}
+
+.sidebar-row {
+  display: flex;
+  align-items: center;
+  padding: 0 6px 0 0;
+  border-left: 2px solid transparent;
+}
+
+.sidebar-row:hover {
+  background: var(--surface-2);
+}
+
+.sidebar-eye {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-2);
+  font-size: 12px;
+  padding: 0;
+  flex: 0 0 28px;
+}
+
+.sidebar-eye:hover {
+  color: var(--ink);
+}
+
+.sidebar-item-main {
+  flex: 1;
+  background: transparent;
+  border: none;
+  text-align: left;
+  padding: 6px 8px 6px 4px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-group.is-hidden .sidebar-item-main,
+.sidebar-group.is-hidden .sidebar-nested {
+  opacity: 0.5;
 }
 
 .sidebar-item-glyph {
@@ -278,12 +329,55 @@ button {
   border-right: none;
 }
 
-/* ----- Rows area ----- */
+/* ----- Lanes ----- */
 
-.rows-area {
-  position: relative;
-  width: 100%;
+.lane {
+  position: absolute;
+  left: 0;
+  right: 0;
   z-index: 2;
+}
+
+.lane + .lane,
+.lane-person,
+.lane-group {
+  border-top: 1px solid var(--line);
+}
+
+.lane-dates-strip {
+  position: absolute;
+  left: 0;
+  right: 0;
+}
+
+.lane-rows {
+  position: absolute;
+  left: 0;
+  right: 0;
+}
+
+.lane-label {
+  position: sticky;
+  left: 8px;
+  top: 8px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  margin: 7px 0 0 8px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 11px;
+  font-size: 11px;
+  color: var(--ink);
+  white-space: nowrap;
+  pointer-events: auto;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.lane-person > .lane-dates-strip > .lane-label {
+  border-color: var(--ink-2);
 }
 
 /* ----- Layer bars ----- */
@@ -378,14 +472,6 @@ button {
 }
 
 /* ----- Date markers ----- */
-
-.dates-strip {
-  position: relative;
-  z-index: 2;
-  width: 100%;
-  border-bottom: 1px solid var(--line);
-  background: var(--bg);
-}
 
 .dates-lines {
   position: absolute;

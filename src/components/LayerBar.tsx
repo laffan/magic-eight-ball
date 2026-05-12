@@ -9,11 +9,19 @@ type Props = {
   rowHeight: number;
   rowPadTop: number;
   monthsTotal: number;
+  onDragEnd?: (id: string, clientY: number) => void;
 };
 
 type DragMode = "move" | "resize-left" | "resize-right";
 
-export default function LayerBar({ layer, rowIndex, rowHeight, rowPadTop, monthsTotal }: Props) {
+export default function LayerBar({
+  layer,
+  rowIndex,
+  rowHeight,
+  rowPadTop,
+  monthsTotal,
+  onDragEnd,
+}: Props) {
   const selectedId = useStore((s) => s.selectedId);
   const setSelected = useStore((s) => s.setSelected);
   const updateLayer = useStore((s) => s.updateLayer);
@@ -73,7 +81,8 @@ export default function LayerBar({ layer, rowIndex, rowHeight, rowPadTop, months
       }
     };
 
-    const onUp = () => {
+    const onUp = (e: MouseEvent) => {
+      if (dragging === "move" && onDragEnd) onDragEnd(layer.id, e.clientY);
       setDragging(null);
       startRef.current = null;
     };
@@ -84,7 +93,7 @@ export default function LayerBar({ layer, rowIndex, rowHeight, rowPadTop, months
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [dragging, layer.id, monthsTotal, updateLayer]);
+  }, [dragging, layer.id, monthsTotal, onDragEnd, updateLayer]);
 
   return (
     <div

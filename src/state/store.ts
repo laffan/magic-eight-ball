@@ -1,9 +1,16 @@
 import { create } from "zustand";
-import type { DateMark, Layer, Person, RepeatKind } from "../types";
+import type { DateMark, Group, Layer, Person, RepeatKind } from "../types";
 
 export const MONTH_WIDTH = 30;
 export const MONTHS_PER_YEAR = 12;
 export const YEAR_WIDTH = MONTH_WIDTH * MONTHS_PER_YEAR;
+
+export const HEADER_HEIGHT = 64;
+export const LANE_DATES_STRIP_HEIGHT = 36;
+export const LANE_ROW_HEIGHT = 36;
+export const LANE_ROW_PAD_TOP = 12;
+export const LANE_MIN_SPAN_ROWS = 1;
+export const LANE_BOTTOM_PAD = 6;
 
 type Store = {
   startYear: number;
@@ -11,19 +18,30 @@ type Store = {
   layers: Layer[];
   dates: DateMark[];
   people: Person[];
+  groups: Group[];
   selectedId: string | null;
   inspectorOpen: boolean;
 
   setSelected: (id: string | null) => void;
   toggleInspector: () => void;
 
-  addLayer: (startMonthIdx: number, endMonthIdx: number, label?: string) => Layer;
-  addDate: (monthIdx: number, dayOfMonth: number, label?: string) => DateMark;
+  addLayer: (
+    startMonthIdx: number,
+    endMonthIdx: number,
+    opts?: { label?: string; containerId?: string }
+  ) => Layer;
+  addDate: (
+    monthIdx: number,
+    dayOfMonth: number,
+    opts?: { label?: string; containerId?: string }
+  ) => DateMark;
   addPerson: (name?: string) => Person;
+  addGroup: (name?: string) => Group;
 
   updateLayer: (id: string, patch: Partial<Layer>) => void;
   updateDate: (id: string, patch: Partial<DateMark>) => void;
   updatePerson: (id: string, patch: Partial<Person>) => void;
+  updateGroup: (id: string, patch: Partial<Group>) => void;
 
   removeItem: (id: string) => void;
 };
@@ -40,35 +58,38 @@ export const useStore = create<Store>((set) => ({
   layers: [],
   dates: [],
   people: [],
+  groups: [],
   selectedId: null,
   inspectorOpen: true,
 
   setSelected: (id) => set({ selectedId: id }),
   toggleInspector: () => set((s) => ({ inspectorOpen: !s.inspectorOpen })),
 
-  addLayer: (startMonthIdx, endMonthIdx, label) => {
+  addLayer: (startMonthIdx, endMonthIdx, opts) => {
     const lo = Math.min(startMonthIdx, endMonthIdx);
     const hi = Math.max(startMonthIdx, endMonthIdx);
     const layer: Layer = {
       id: nextId("l"),
       kind: "layer",
-      label: label ?? "Untitled span",
+      label: opts?.label ?? "Untitled span",
       startMonthIdx: lo,
       endMonthIdx: hi,
+      containerId: opts?.containerId,
     };
     set((s) => ({ layers: [...s.layers, layer], selectedId: layer.id }));
     return layer;
   },
 
-  addDate: (monthIdx, dayOfMonth, label) => {
+  addDate: (monthIdx, dayOfMonth, opts) => {
     const date: DateMark = {
       id: nextId("d"),
       kind: "date",
-      label: label ?? "Untitled date",
+      label: opts?.label ?? "Untitled date",
       monthIdx,
       dayOfMonth: Math.max(1, Math.min(31, dayOfMonth)),
       important: false,
       repeat: "none",
+      containerId: opts?.containerId,
     };
     set((s) => ({ dates: [...s.dates, date], selectedId: date.id }));
     return date;
@@ -80,11 +101,23 @@ export const useStore = create<Store>((set) => ({
       id: nextId("p"),
       kind: "person",
       name: name ?? "Untitled person",
+      birthYear: today.getFullYear() - 30,
       birthMonth: today.getMonth(),
       birthDay: today.getDate(),
     };
     set((s) => ({ people: [...s.people, person], selectedId: person.id }));
     return person;
+  },
+
+  addGroup: (name) => {
+    const group: Group = {
+      id: nextId("g"),
+      kind: "group",
+      name: name ?? "Untitled group",
+      visible: true,
+    };
+    set((s) => ({ groups: [...s.groups, group], selectedId: group.id }));
+    return group;
   },
 
   updateLayer: (id, patch) =>
@@ -102,17 +135,28 @@ export const useStore = create<Store>((set) => ({
       people: s.people.map((p) => (p.id === id ? { ...p, ...patch } : p)),
     })),
 
+  updateGroup: (id, patch) =>
+    set((s) => ({
+      groups: s.groups.map((g) => (g.id === id ? { ...g, ...patch } : g)),
+    })),
+
   removeItem: (id) =>
     set((s) => {
-      const isPerson = s.people.some((p) => p.id === id);
+      const isContainer =
+        s.people.some((p) => p.id === id) || s.groups.some((g) => g.id === id);
       return {
         layers: s.layers
           .filter((l) => l.id !== id)
-          .map((l) => (isPerson && l.personId === id ? { ...l, personId: undefined } : l)),
+          .map((l) =>
+            isContainer && l.containerId === id ? { ...l, containerId: undefined } : l
+          ),
         dates: s.dates
           .filter((d) => d.id !== id)
-          .map((d) => (isPerson && d.personId === id ? { ...d, personId: undefined } : d)),
+          .map((d) =>
+            isContainer && d.containerId === id ? { ...d, containerId: undefined } : d
+          ),
         people: s.people.filter((p) => p.id !== id),
+        groups: s.groups.filter((g) => g.id !== id),
         selectedId: s.selectedId === id ? null : s.selectedId,
       };
     }),
@@ -122,7 +166,7 @@ export const totalMonths = (numYears: number) => numYears * MONTHS_PER_YEAR;
 
 export const monthLabel = (idx: number) => {
   const names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return names[idx % MONTHS_PER_YEAR];
+  return names[((idx % MONTHS_PER_YEAR) + MONTHS_PER_YEAR) % MONTHS_PER_YEAR];
 };
 
 export const monthLabelLong = (m: number) => {
@@ -168,6 +212,8 @@ export type Occurrence = {
   isBase: boolean;
 };
 
+export type BirthdayOccurrence = Occurrence & { age: number };
+
 function pushOccurrence(out: Occurrence[], d: Date, startYear: number, isBase: boolean): void {
   const year = d.getFullYear();
   const month = d.getMonth();
@@ -199,15 +245,12 @@ export function generateDateOccurrences(
     return out;
   }
 
-  // Forward from base, stopping when we leave the range.
   const cur = new Date(base);
-  let first = true;
   let safety = 10000;
   while (cur.getTime() < endMs && safety-- > 0) {
     if (cur.getTime() >= startMs) {
-      pushOccurrence(out, cur, startYear, first && cur.getTime() === base.getTime());
+      pushOccurrence(out, cur, startYear, cur.getTime() === base.getTime());
     }
-    first = false;
     if (repeat === "weekly") cur.setDate(cur.getDate() + 7);
     else if (repeat === "monthly") cur.setMonth(cur.getMonth() + 1);
     else if (repeat === "annual") cur.setFullYear(cur.getFullYear() + 1);
@@ -215,9 +258,6 @@ export function generateDateOccurrences(
     else break;
   }
 
-  // Ensure the base appears exactly once in the result (it is the
-  // selectable representative). If the base is outside the timeline range,
-  // pick the first in-range occurrence as the representative.
   if (!out.some((o) => o.isBase) && out.length > 0) {
     out[0] = { ...out[0], isBase: true };
   }
@@ -228,10 +268,12 @@ export function generateBirthdayOccurrences(
   person: Person,
   startYear: number,
   numYears: number
-): Occurrence[] {
-  const out: Occurrence[] = [];
+): BirthdayOccurrence[] {
+  const out: BirthdayOccurrence[] = [];
   for (let y = 0; y < numYears; y++) {
     const year = startYear + y;
+    const age = year - person.birthYear;
+    if (age < 0) continue;
     const dim = daysInMonth(year, person.birthMonth);
     const day = Math.max(1, Math.min(dim, person.birthDay));
     const monthIdx = y * 12 + person.birthMonth;
@@ -239,8 +281,80 @@ export function generateBirthdayOccurrences(
       monthIdx,
       dayOfMonth: day,
       x: dateToX(monthIdx, day, startYear),
-      isBase: y === 0,
+      isBase: out.length === 0,
+      age,
     });
   }
   return out;
+}
+
+// ----- Lane layout -----
+
+export type LaneKind = "default" | "person" | "group";
+
+export type Lane = {
+  id: string | null;
+  kind: LaneKind;
+  label: string;
+  person?: Person;
+  group?: Group;
+  spans: Layer[];
+  dotDates: DateMark[];
+  topY: number;
+  height: number;
+  datesTopY: number;
+  datesHeight: number;
+  rowsTopY: number;
+  rowsHeight: number;
+};
+
+export function computeLanes(input: {
+  layers: Layer[];
+  dates: DateMark[];
+  people: Person[];
+  groups: Group[];
+}): { lanes: Lane[]; totalHeight: number } {
+  const { layers, dates, people, groups } = input;
+  const lanes: Lane[] = [];
+  let y = HEADER_HEIGHT;
+
+  const visibleGroups = groups.filter((g) => g.visible);
+
+  const push = (
+    id: string | null,
+    kind: LaneKind,
+    label: string,
+    extras: Pick<Lane, "person" | "group"> = {}
+  ) => {
+    const idMatch = (v: string | undefined) => (v ?? null) === id;
+    const spans = layers.filter((l) => idMatch(l.containerId));
+    const dotDates = dates.filter((d) => idMatch(d.containerId) && !d.important);
+
+    const datesHeight = LANE_DATES_STRIP_HEIGHT;
+    const rowCount = Math.max(LANE_MIN_SPAN_ROWS, spans.length);
+    const rowsHeight = rowCount * LANE_ROW_HEIGHT + LANE_ROW_PAD_TOP;
+    const height = datesHeight + rowsHeight + LANE_BOTTOM_PAD;
+
+    lanes.push({
+      id,
+      kind,
+      label,
+      ...extras,
+      spans,
+      dotDates,
+      topY: y,
+      height,
+      datesTopY: y,
+      datesHeight,
+      rowsTopY: y + datesHeight,
+      rowsHeight,
+    });
+    y += height;
+  };
+
+  push(null, "default", "");
+  for (const p of people) push(p.id, "person", p.name, { person: p });
+  for (const g of visibleGroups) push(g.id, "group", g.name, { group: g });
+
+  return { lanes, totalHeight: y };
 }

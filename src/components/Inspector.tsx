@@ -1,4 +1,10 @@
-import { MONTHS_PER_YEAR, monthLabel, monthLabelLong, useStore, daysInMonth } from "../state/store";
+import {
+  MONTHS_PER_YEAR,
+  daysInMonth,
+  monthLabel,
+  monthLabelLong,
+  useStore,
+} from "../state/store";
 import type { Item, RepeatKind } from "../types";
 
 const REPEAT_OPTIONS: { value: RepeatKind; label: string }[] = [
@@ -14,6 +20,7 @@ export default function Inspector() {
   const toggle = useStore((s) => s.toggleInspector);
   const startYear = useStore((s) => s.startYear);
   const people = useStore((s) => s.people);
+  const groups = useStore((s) => s.groups);
 
   const item = useStore<Item | null>((s) => {
     if (!s.selectedId) return null;
@@ -21,6 +28,7 @@ export default function Inspector() {
       s.layers.find((l) => l.id === s.selectedId) ??
       s.dates.find((d) => d.id === s.selectedId) ??
       s.people.find((p) => p.id === s.selectedId) ??
+      s.groups.find((g) => g.id === s.selectedId) ??
       null
     );
   });
@@ -28,6 +36,7 @@ export default function Inspector() {
   const updateLayer = useStore((s) => s.updateLayer);
   const updateDate = useStore((s) => s.updateDate);
   const updatePerson = useStore((s) => s.updatePerson);
+  const updateGroup = useStore((s) => s.updateGroup);
   const removeItem = useStore((s) => s.removeItem);
 
   const formatMonth = (idx: number) => {
@@ -35,16 +44,31 @@ export default function Inspector() {
     return `${monthLabel(idx)} ${year}`;
   };
 
-  const personOptions = (
+  const containerOptions = (
     <>
       <option value="">— None —</option>
-      {people.map((p) => (
-        <option key={p.id} value={p.id}>
-          {p.name}
-        </option>
-      ))}
+      {people.length > 0 && (
+        <optgroup label="People">
+          {people.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </optgroup>
+      )}
+      {groups.length > 0 && (
+        <optgroup label="Groups">
+          {groups.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.name}
+            </option>
+          ))}
+        </optgroup>
+      )}
     </>
   );
+
+  const hasContainers = people.length + groups.length > 0;
 
   return (
     <aside className={`inspector ${open ? "is-open" : "is-closed"}`}>
@@ -86,17 +110,17 @@ export default function Inspector() {
                 </div>
               </div>
 
-              {people.length > 0 && (
+              {hasContainers && (
                 <label className="field">
                   <span className="field-label">Belongs to</span>
                   <select
                     className="field-input"
-                    value={item.personId ?? ""}
+                    value={item.containerId ?? ""}
                     onChange={(e) =>
-                      updateLayer(item.id, { personId: e.target.value || undefined })
+                      updateLayer(item.id, { containerId: e.target.value || undefined })
                     }
                   >
-                    {personOptions}
+                    {containerOptions}
                   </select>
                 </label>
               )}
@@ -168,17 +192,17 @@ export default function Inspector() {
                 </label>
               )}
 
-              {people.length > 0 && (
+              {hasContainers && (
                 <label className="field">
                   <span className="field-label">Belongs to</span>
                   <select
                     className="field-input"
-                    value={item.personId ?? ""}
+                    value={item.containerId ?? ""}
                     onChange={(e) =>
-                      updateDate(item.id, { personId: e.target.value || undefined })
+                      updateDate(item.id, { containerId: e.target.value || undefined })
                     }
                   >
-                    {personOptions}
+                    {containerOptions}
                   </select>
                 </label>
               )}
@@ -199,6 +223,22 @@ export default function Inspector() {
                   onChange={(e) => updatePerson(item.id, { name: e.target.value })}
                 />
               </label>
+
+              <div className="field-row">
+                <label className="field">
+                  <span className="field-label">Birth year</span>
+                  <input
+                    className="field-input"
+                    type="number"
+                    value={item.birthYear}
+                    onChange={(e) =>
+                      updatePerson(item.id, {
+                        birthYear: Number(e.target.value) || item.birthYear,
+                      })
+                    }
+                  />
+                </label>
+              </div>
 
               <div className="field-row">
                 <label className="field">
@@ -223,7 +263,7 @@ export default function Inspector() {
                     className="field-input"
                     type="number"
                     min={1}
-                    max={daysInMonth(2000, item.birthMonth)}
+                    max={daysInMonth(item.birthYear || 2000, item.birthMonth)}
                     value={item.birthDay}
                     onChange={(e) =>
                       updatePerson(item.id, {
@@ -233,6 +273,32 @@ export default function Inspector() {
                   />
                 </label>
               </div>
+
+              <button className="danger-btn" onClick={() => removeItem(item.id)}>
+                Delete
+              </button>
+            </div>
+          )}
+
+          {item?.kind === "group" && (
+            <div className="inspector-fields">
+              <label className="field">
+                <span className="field-label">Name</span>
+                <input
+                  className="field-input"
+                  value={item.name}
+                  onChange={(e) => updateGroup(item.id, { name: e.target.value })}
+                />
+              </label>
+
+              <label className="field-check">
+                <input
+                  type="checkbox"
+                  checked={item.visible}
+                  onChange={(e) => updateGroup(item.id, { visible: e.target.checked })}
+                />
+                <span>Visible</span>
+              </label>
 
               <button className="danger-btn" onClick={() => removeItem(item.id)}>
                 Delete
