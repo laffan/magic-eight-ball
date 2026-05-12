@@ -15,7 +15,6 @@ export default function ZoomSlider() {
 
   return (
     <div className="zoom-slider" role="radiogroup" aria-label="Zoom">
-      <div className="zoom-track" aria-hidden />
       {ZOOM_STOPS.map((stop) => (
         <button
           key={stop}

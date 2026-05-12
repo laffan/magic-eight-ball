@@ -5,6 +5,9 @@ import {
   LANE_ROW_PAD_TOP,
   birthdayKey,
   computeLanes,
+  dateToEndX,
+  dateToX,
+  generateBirthdayOccurrences,
   laneKey,
   laneYCenter,
   totalMonths,
@@ -52,6 +55,7 @@ export default function Canvas() {
   const updateLayer = useStore((s) => s.updateLayer);
   const updateDate = useStore((s) => s.updateDate);
   const setSelected = useStore((s) => s.setSelected);
+  const scrollToTarget = useStore((s) => s.scrollToTarget);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -115,6 +119,83 @@ export default function Canvas() {
   );
 
   const importantDates = useMemo(() => dates.filter((d) => d.important), [dates]);
+
+  // Scroll the canvas to bring a requested item into view (horizontally
+  // centered, vertically into view if its lane is off-screen).
+  useEffect(() => {
+    if (!scrollToTarget) return;
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const id = scrollToTarget.id;
+    let targetX: number | null = null;
+    let targetY: number | null = null;
+
+    const layer = layers.find((l) => l.id === id);
+    if (layer) {
+      const sx = dateToX(layer.startMonthIdx, layer.startDayOfMonth, startYear, monthWidth);
+      const ex = dateToEndX(layer.endMonthIdx, layer.endDayOfMonth, startYear, monthWidth);
+      targetX = (sx + ex) / 2;
+    }
+    if (targetX === null) {
+      const date = dates.find((d) => d.id === id);
+      if (date) targetX = dateToX(date.monthIdx, date.dayOfMonth, startYear, monthWidth);
+    }
+    if (targetX === null) {
+      const person = people.find((p) => p.id === id);
+      if (person) {
+        const occs = generateBirthdayOccurrences(person, startYear, numYears, monthWidth);
+        if (occs.length) targetX = occs[0].x;
+      }
+    }
+    if (targetX === null) {
+      const group = groups.find((g) => g.id === id);
+      if (group) {
+        const firstLayer = layers.find((l) => l.containerId === group.id);
+        if (firstLayer) {
+          targetX = dateToX(
+            firstLayer.startMonthIdx,
+            firstLayer.startDayOfMonth,
+            startYear,
+            monthWidth
+          );
+        } else {
+          const firstDate = dates.find((d) => d.containerId === group.id);
+          if (firstDate)
+            targetX = dateToX(firstDate.monthIdx, firstDate.dayOfMonth, startYear, monthWidth);
+        }
+      }
+    }
+
+    // Find which lane (vertically) contains the item.
+    for (const lane of lanes) {
+      const isOwnLane = lane.id === id;
+      const ownsSpan = lane.spans.some((l) => l.id === id);
+      const ownsDot = lane.dotDates.some((d) => d.id === id);
+      const ownsImportant = (() => {
+        const d = dates.find((x) => x.id === id);
+        return d?.important && (d.containerId ?? null) === lane.id;
+      })();
+      if (isOwnLane || ownsSpan || ownsDot || ownsImportant) {
+        targetY = lane.topY + lane.height / 2;
+        break;
+      }
+    }
+
+    if (targetX === null && targetY === null) return;
+
+    const left =
+      targetX !== null
+        ? Math.max(0, targetX - el.clientWidth / 2)
+        : el.scrollLeft;
+    const top =
+      targetY !== null
+        ? Math.max(0, targetY - el.clientHeight / 2)
+        : el.scrollTop;
+
+    el.scrollTo({ left, top, behavior: "smooth" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollToTarget]);
 
   const toContentCoords = useCallback((clientX: number, clientY: number) => {
     const el = contentRef.current;

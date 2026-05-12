@@ -278,17 +278,6 @@ button {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
-.zoom-track {
-  position: absolute;
-  left: 18px;
-  right: 18px;
-  top: 50%;
-  height: 1px;
-  background: var(--line-strong);
-  transform: translateY(-0.5px);
-  pointer-events: none;
-}
-
 .zoom-stop {
   position: relative;
   background: transparent;

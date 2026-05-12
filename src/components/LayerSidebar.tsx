@@ -39,6 +39,11 @@ export default function LayerSidebar() {
   const groups = useStore((s) => s.groups);
   const selectedId = useStore((s) => s.selectedId);
   const setSelected = useStore((s) => s.setSelected);
+  const requestScrollTo = useStore((s) => s.requestScrollTo);
+  const selectAndScroll = (id: string) => {
+    setSelected(id);
+    requestScrollTo(id);
+  };
   const updateLayer = useStore((s) => s.updateLayer);
   const updateDate = useStore((s) => s.updateDate);
   const updatePerson = useStore((s) => s.updatePerson);
@@ -181,55 +186,6 @@ export default function LayerSidebar() {
           </p>
         )}
 
-        {people.length > 0 && (
-          <section className="sidebar-section">
-            <h4 className="sidebar-section-title">People</h4>
-            <ul className="sidebar-list">
-              {people.map((p) => (
-                <PersonGroup
-                  key={p.id}
-                  person={p}
-                  selectedId={selectedId}
-                  layers={layersIn(p.id)}
-                  dates={datesIn(p.id)}
-                  onSelect={setSelected}
-                  onRename={(name) => updatePerson(p.id, { name })}
-                  onRenameLayer={(id, label) => updateLayer(id, { label })}
-                  onRenameDate={(id, label) => updateDate(id, { label })}
-                  startDrag={startDrag}
-                  drag={drag}
-                  dropTargetKey={dropTargetKey}
-                />
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {groups.length > 0 && (
-          <section className="sidebar-section">
-            <h4 className="sidebar-section-title">Groups</h4>
-            <ul className="sidebar-list">
-              {groups.map((g) => (
-                <GroupSection
-                  key={g.id}
-                  group={g}
-                  selectedId={selectedId}
-                  layers={layersIn(g.id)}
-                  dates={datesIn(g.id)}
-                  onSelect={setSelected}
-                  onRename={(name) => updateGroup(g.id, { name })}
-                  onRenameLayer={(id, label) => updateLayer(id, { label })}
-                  onRenameDate={(id, label) => updateDate(id, { label })}
-                  onToggleVisible={() => updateGroup(g.id, { visible: !g.visible })}
-                  startDrag={startDrag}
-                  drag={drag}
-                  dropTargetKey={dropTargetKey}
-                />
-              ))}
-            </ul>
-          </section>
-        )}
-
         <section className="sidebar-section">
           <h4
             className={`sidebar-section-title is-drop-zone ${
@@ -246,7 +202,7 @@ export default function LayerSidebar() {
                 key={l.id}
                 layer={l}
                 selected={selectedId === l.id}
-                onSelect={() => setSelected(l.id)}
+                onSelect={() => selectAndScroll(l.id)}
                 onRename={(label) => updateLayer(l.id, { label })}
                 startDrag={startDrag}
                 isDragging={drag?.kind === "layer" && drag.id === l.id && drag.isDragging}
@@ -271,7 +227,7 @@ export default function LayerSidebar() {
                 key={d.id}
                 date={d}
                 selected={selectedId === d.id}
-                onSelect={() => setSelected(d.id)}
+                onSelect={() => selectAndScroll(d.id)}
                 onRename={(label) => updateDate(d.id, { label })}
                 startDrag={startDrag}
                 isDragging={drag?.kind === "date" && drag.id === d.id && drag.isDragging}
@@ -279,6 +235,55 @@ export default function LayerSidebar() {
             ))}
           </ul>
         </section>
+
+        {people.length > 0 && (
+          <section className="sidebar-section">
+            <h4 className="sidebar-section-title">People</h4>
+            <ul className="sidebar-list">
+              {people.map((p) => (
+                <PersonGroup
+                  key={p.id}
+                  person={p}
+                  selectedId={selectedId}
+                  layers={layersIn(p.id)}
+                  dates={datesIn(p.id)}
+                  onSelect={selectAndScroll}
+                  onRename={(name) => updatePerson(p.id, { name })}
+                  onRenameLayer={(id, label) => updateLayer(id, { label })}
+                  onRenameDate={(id, label) => updateDate(id, { label })}
+                  startDrag={startDrag}
+                  drag={drag}
+                  dropTargetKey={dropTargetKey}
+                />
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {groups.length > 0 && (
+          <section className="sidebar-section">
+            <h4 className="sidebar-section-title">Groups</h4>
+            <ul className="sidebar-list">
+              {groups.map((g) => (
+                <GroupSection
+                  key={g.id}
+                  group={g}
+                  selectedId={selectedId}
+                  layers={layersIn(g.id)}
+                  dates={datesIn(g.id)}
+                  onSelect={selectAndScroll}
+                  onRename={(name) => updateGroup(g.id, { name })}
+                  onRenameLayer={(id, label) => updateLayer(id, { label })}
+                  onRenameDate={(id, label) => updateDate(id, { label })}
+                  onToggleVisible={() => updateGroup(g.id, { visible: !g.visible })}
+                  startDrag={startDrag}
+                  drag={drag}
+                  dropTargetKey={dropTargetKey}
+                />
+              ))}
+            </ul>
+          </section>
+        )}
       </div>
 
       <footer className="sidebar-footer">

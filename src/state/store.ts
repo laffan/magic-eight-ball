@@ -46,10 +46,15 @@ type Store = {
   monthsVisible: MonthsVisible;
   monthWidth: number; // px per month, recomputed from viewport when monthsVisible changes
 
+  // A scroll-into-view request. The nonce changes every time so the canvas
+  // re-runs the scroll even when the same id is targeted twice in a row.
+  scrollToTarget: { id: string; nonce: number } | null;
+
   setSelected: (id: string | null) => void;
   toggleInspector: () => void;
   setMonthsVisible: (n: MonthsVisible) => void;
   setMonthWidth: (w: number) => void;
+  requestScrollTo: (id: string) => void;
 
   addLayer: (
     startMonthIdx: number,
@@ -99,11 +104,16 @@ export const useStore = create<Store>()(
 
       monthsVisible: 36,
       monthWidth: MONTH_WIDTH_DEFAULT,
+      scrollToTarget: null,
 
       setSelected: (id) => set({ selectedId: id }),
       toggleInspector: () => set((s) => ({ inspectorOpen: !s.inspectorOpen })),
       setMonthsVisible: (n) => set({ monthsVisible: n }),
       setMonthWidth: (w) => set({ monthWidth: Math.max(8, w) }),
+      requestScrollTo: (id) =>
+        set((s) => ({
+          scrollToTarget: { id, nonce: (s.scrollToTarget?.nonce ?? 0) + 1 },
+        })),
 
       addLayer: (startMonthIdx, startDayOfMonth, endMonthIdx, endDayOfMonth, opts) => {
         const startKey = startMonthIdx * 100 + startDayOfMonth;
