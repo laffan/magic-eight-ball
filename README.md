@@ -1,44 +1,39 @@
 # Magic Eight Ball
 
-A multi-year, Gantt-style planning canvas. Built as a [Tauri 2](https://tauri.app/) desktop app and a web app deployed to GitHub Pages.
+A multi-year, Gantt-style planning canvas. You click to drop dates, drag to
+draw spans, and group them by layer or person. It can import `.ics` calendars
+and import or export the whole canvas as JSON.
 
-## Layout
+It runs as a desktop app (Tauri) and as a web app deployed to GitHub Pages.
 
-- A horizontally scrollable timeline of years and months (30 px per month, 360 px per year).
-- A vertically scrollable stack of layer rows.
-- A left sidebar listing all layers and dates.
-- A right inspector for the selected item, with a full-height toggle on its left edge.
-- A `+` button in the lower-left of the canvas with a flyout menu.
+## Installation
 
-## Interactions
+Download the installer for your system from the
+[Releases](../../releases) page: `.dmg` (macOS), `.msi` or `.exe` (Windows),
+`.AppImage`, `.deb` or `.rpm` (Linux).
 
-- Click on the canvas to drop a **date** (a labeled dot under the header).
-- Mark a date as **Important** in the inspector to render it as a full-height vertical bar instead.
-- Click and drag horizontally to draw a **span** (a Gantt-style bar).
-- Drag either end of a span to resize. Drag the body to move.
-- **Option-drag** (Alt-drag) a span to duplicate it: the original stays put and a copy follows the cursor.
-- Double-click a span's label or a date's label to rename it in place.
-- Dates can repeat **weekly / monthly / annual / custom (every N days)** — ghost copies are drawn at each occurrence.
-- Add a **Person** from the + menu. A person has a birthday (rendered as an annual dot) and can act as a container for any number of spans and dates (assigned via the inspector).
-- A thin red line marks today; a small tooltip near the cursor shows the date you're hovering.
-- **File menu** (top-left) imports `.ics` calendars (with a per-event preview where you can check/uncheck what to bring in), imports/exports the whole canvas as JSON.
+The builds are not code-signed. On macOS, if the app is blocked on first
+launch, move it to Applications and run:
 
-## Develop
+```sh
+xattr -cr "/Applications/Magic Eight Ball.app"
+```
 
-```bash
+On Windows, choose "More info" then "Run anyway" when SmartScreen warns.
+
+The web version needs no installation; it is deployed from `.github/workflows/pages.yml`.
+
+### Build from source
+
+Requires [Node.js](https://nodejs.org/), [Rust](https://rustup.rs/) and the
+[Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS.
+
+```sh
 npm install
-npm run dev          # web only
-npm run tauri:dev    # desktop app via Tauri
+npm run tauri build    # installers end up in src-tauri/target/release/bundle/
+npm run tauri dev      # run in development
 ```
 
-## Build
+## More detail
 
-```bash
-npm run build              # web (default base path "/")
-npm run build:web          # web with base "/magic-eight-ball/" (GitHub Pages)
-npm run tauri:build        # desktop binaries via Tauri
-```
-
-## Web deployment
-
-`.github/workflows/pages.yml` builds the web app on every push to `main` and deploys `dist/` to GitHub Pages. Enable Pages in repo settings → Pages → Source: GitHub Actions.
+[README_DETAIL.md](README_DETAIL.md) lists the interactions and build commands. [README-TECHNICAL.md](README-TECHNICAL.md) covers the internals.
