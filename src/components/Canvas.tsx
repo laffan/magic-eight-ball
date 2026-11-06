@@ -1,3 +1,5 @@
+import ValueGraphs from "./ValueGraphs";
+import RepeatSpans from "./RepeatSpans";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   HEADER_HEIGHT,
@@ -41,6 +43,7 @@ type Cursor = { x: number; y: number; clientX: number; clientY: number } | null;
 type SpanDrag = { id: string; mode: LayerDragMode };
 
 export default function Canvas() {
+  const values = useStore(s => s.values);
   const numYears = useStore((s) => s.numYears);
   const startYear = useStore((s) => s.startYear);
   const layers = useStore((s) => s.layers);
@@ -131,6 +134,12 @@ export default function Canvas() {
     let targetX: number | null = null;
     let targetY: number | null = null;
 
+    const valueIndex = values.findIndex(v => v.id === id);
+    if (valueIndex >= 0) {
+      targetY = totalHeight + valueIndex * 110 + 55;
+      const date = new Date(values[valueIndex].startDate + "T00:00:00Z");
+      targetX = dateToX((date.getUTCFullYear()-startYear)*12+date.getUTCMonth(),date.getUTCDate(),startYear,monthWidth);
+    }
     const layer = layers.find((l) => l.id === id);
     if (layer) {
       const sx = dateToX(layer.startMonthIdx, layer.startDayOfMonth, startYear, monthWidth);
@@ -410,7 +419,7 @@ export default function Canvas() {
           className="canvas-content"
           style={{
             width: contentWidth,
-            minHeight: `max(${totalHeight}px, 100%)`,
+            minHeight: `max(${totalHeight + values.length * 110}px, 100%)`,
           }}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
@@ -465,6 +474,7 @@ export default function Canvas() {
                   className="lane-rows"
                   style={{ top: lane.datesHeight, height: lane.rowsHeight }}
                 >
+                  {lane.spans.map((layer, idx) => <RepeatSpans key={layer.id} layer={layer} rowIndex={idx} />)}
                   {lane.spans.map((layer, idx) => (
                     <LayerBar
                       key={layer.id}
@@ -483,6 +493,7 @@ export default function Canvas() {
             );
           })}
 
+          <ValueGraphs top={totalHeight} />
           <TodayMarker />
 
           <div className="dates-lines">

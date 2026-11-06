@@ -74,6 +74,9 @@ export default function LayerBar({
       );
     }
 
+    if (dragLayer.id !== layer.id) updateLayer(dragLayer.id, {
+      repeat: layer.repeat, repeatEveryDays: layer.repeatEveryDays, valueEffect: layer.valueEffect,
+    });
     dragIdRef.current = dragLayer.id;
     setSelected(dragLayer.id);
     setDragging(mode);

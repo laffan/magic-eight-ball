@@ -40,3 +40,25 @@ npm run tauri:build        # desktop binaries via Tauri
 ## Web deployment
 
 `.github/workflows/pages.yml` builds the web app on every push to `main` and deploys `dist/` to GitHub Pages. Enable Pages in repo settings → Pages → Source: GitHub Actions.
+
+## Value layers and repeating spans
+
+Add **New value** from the + menu, then set its name, start date and starting USD
+balance in the inspector. Its timeline row plots the balance; select it from the
+Values sidebar or graph to edit it.
+
+Dates and spans have an **Affects Value** checkbox. Choose a value and enter a
+signed USD amount. Dates apply the whole amount on their date. Spans distribute
+the amount equally over their inclusive calendar days: January 1–7 with +7 adds
+1 per day. Contributions before the value's start date are ignored. Repeated
+dates and spans contribute on each occurrence. Hiding a group does not remove
+its financial contributions. Deleting a value clears its links.
+
+Spans repeat weekly, monthly, yearly, or every custom number of days. Options
+that could overlap are excluded (monthly requires at most 28 days, yearly at
+most 365); custom intervals cannot be shorter than the span. Repeated copies
+select the original for editing. Month-end and leap-day repeats clamp to the
+last valid day and retain their original calendar anchor.
+
+Calculation regression tests (Node 22.18+):
+`node --experimental-strip-types --test tests/valueMath.test.mjs`.

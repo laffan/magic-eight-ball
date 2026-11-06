@@ -3,6 +3,7 @@ import { useStore } from "../state/store";
 
 export default function AddMenu() {
   const [open, setOpen] = useState(false);
+  const addValue = useStore(s => s.addValue);
   const addLayer = useStore((s) => s.addLayer);
   const addDate = useStore((s) => s.addDate);
   const addPerson = useStore((s) => s.addPerson);
@@ -31,6 +32,7 @@ export default function AddMenu() {
     <div className="add-menu" ref={rootRef}>
       {open && (
         <div className="add-menu-flyout" role="menu">
+          <button className="add-menu-item" onClick={() => { addValue(); setOpen(false); }}>New value</button>
           <button
             className="add-menu-item"
             onClick={() => {

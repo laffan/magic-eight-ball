@@ -1,0 +1,36 @@
+/* ----- Values and repeating spans ----- */
+.value-graph {
+  position: absolute;
+  height: 110px;
+  color: #4a9d5b;
+  border-top: 1px solid #ccc;
+}
+.value-graph button {
+  position: sticky;
+  left: 8px;
+  cursor: pointer;
+}
+.value-graph svg {
+  display: block;
+  cursor: pointer;
+}
+.repeat-span {
+  position: absolute;
+  height: 28px;
+  opacity: 0.55;
+  overflow: hidden;
+  border: 1px solid currentColor;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.value-sidebar-item {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  padding: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+.value-sidebar-item.is-selected {
+  background: #e0e9f0;
+}

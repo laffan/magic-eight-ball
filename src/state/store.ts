@@ -1,6 +1,7 @@
+import { occurrences, dayParts, dayNumber } from "./valueMath";
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import type { DateMark, Group, Layer, Person, RepeatKind } from "../types";
+import type { DateMark, Group, Layer, Person, ValueLayer } from "../types";
 
 export const MONTH_WIDTH_DEFAULT = 30;
 export const MONTHS_PER_YEAR = 12;
@@ -31,6 +32,7 @@ type ExportedSnapshot = {
   dates: DateMark[];
   people: Person[];
   groups: Group[];
+  values: ValueLayer[];
 };
 
 type Store = {
@@ -40,6 +42,7 @@ type Store = {
   dates: DateMark[];
   people: Person[];
   groups: Group[];
+  values: ValueLayer[];
   selectedId: string | null;
   inspectorOpen: boolean;
 
@@ -69,6 +72,8 @@ type Store = {
     dayOfMonth: number,
     opts?: { label?: string; containerId?: string }
   ) => DateMark;
+  addValue: () => void;
+  updateValue: (id: string, patch: Partial<ValueLayer>) => void;
   addPerson: (name?: string) => Person;
   addGroup: (name?: string) => Group;
 
@@ -89,7 +94,7 @@ const nextId = (prefix: string) =>
 
 const currentYear = new Date().getFullYear();
 
-const SNAPSHOT_VERSION = 1;
+const SNAPSHOT_VERSION = 2;
 
 export const useStore = create<Store>()(
   persist(
@@ -100,6 +105,7 @@ export const useStore = create<Store>()(
       dates: [],
       people: [],
       groups: [],
+      values: [],
       selectedId: null,
       inspectorOpen: true,
 
@@ -150,6 +156,12 @@ export const useStore = create<Store>()(
         return date;
       },
 
+      addValue: () => {
+        const now = new Date();
+        const value: ValueLayer = { id: nextId("v"), kind: "value", name: "Untitled value", startDate: `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`, startingValue: 0 };
+        set(s => ({ values: [...s.values, value], selectedId: value.id }));
+      },
+      updateValue: (id, patch) => set(s => ({ values: s.values.map(v => v.id === id ? {...v, ...patch} : v) })),
       addPerson: (name) => {
         const today = new Date();
         const person: Person = {
@@ -200,16 +212,17 @@ export const useStore = create<Store>()(
           const isContainer =
             s.people.some((p) => p.id === id) || s.groups.some((g) => g.id === id);
           return {
-            layers: s.layers
+            layers: s.layers.map(l => l.valueEffect?.valueId === id ? {...l, valueEffect: undefined} : l)
               .filter((l) => l.id !== id)
               .map((l) =>
                 isContainer && l.containerId === id ? { ...l, containerId: undefined } : l
               ),
-            dates: s.dates
+            dates: s.dates.map(d => d.valueEffect?.valueId === id ? {...d, valueEffect: undefined} : d)
               .filter((d) => d.id !== id)
               .map((d) =>
                 isContainer && d.containerId === id ? { ...d, containerId: undefined } : d
               ),
+            values: s.values.filter(v => v.id !== id),
             people: s.people.filter((p) => p.id !== id),
             groups: s.groups.filter((g) => g.id !== id),
             selectedId: s.selectedId === id ? null : s.selectedId,
@@ -226,6 +239,7 @@ export const useStore = create<Store>()(
           dates: s.dates,
           people: s.people,
           groups: s.groups,
+          values: s.values,
         };
       },
 
@@ -242,6 +256,7 @@ export const useStore = create<Store>()(
           endMonthIdx: l.endMonthIdx,
           endDayOfMonth: l.endDayOfMonth ?? 28,
           containerId: l.containerId,
+          repeat: l.repeat, repeatEveryDays: l.repeatEveryDays, valueEffect: l.valueEffect,
         }));
         set({
           startYear: data.startYear ?? new Date().getFullYear(),
@@ -250,6 +265,7 @@ export const useStore = create<Store>()(
           dates: data.dates,
           people: Array.isArray(data.people) ? data.people : [],
           groups: Array.isArray(data.groups) ? data.groups : [],
+          values: Array.isArray(data.values) ? data.values : [],
           selectedId: null,
         });
         return true;
@@ -257,7 +273,7 @@ export const useStore = create<Store>()(
     }),
     {
       name: "magic-eight-ball",
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         startYear: state.startYear,
@@ -266,6 +282,7 @@ export const useStore = create<Store>()(
         dates: state.dates,
         people: state.people,
         groups: state.groups,
+        values: state.values,
         monthsVisible: state.monthsVisible,
       }),
       migrate: (persistedState: unknown, version: number) => {
@@ -285,6 +302,7 @@ export const useStore = create<Store>()(
             };
           });
         }
+        if (version < 2) s.values = [];
         return s;
       },
     }
@@ -351,61 +369,14 @@ export type Occurrence = {
 
 export type BirthdayOccurrence = Occurrence & { age: number };
 
-function pushOccurrence(
-  out: Occurrence[],
-  d: Date,
-  startYear: number,
-  monthWidth: number,
-  isBase: boolean
-): void {
-  const year = d.getFullYear();
-  const month = d.getMonth();
-  const day = d.getDate();
-  const monthIdx = (year - startYear) * 12 + month;
-  out.push({ monthIdx, dayOfMonth: day, x: dateToX(monthIdx, day, startYear, monthWidth), isBase });
-}
-
-export function generateDateOccurrences(
-  date: DateMark,
-  startYear: number,
-  numYears: number,
-  monthWidth: number
-): Occurrence[] {
-  const out: Occurrence[] = [];
-  const baseYear = startYear + Math.floor(date.monthIdx / 12);
-  const baseMonth = ((date.monthIdx % 12) + 12) % 12;
-  const base = new Date(baseYear, baseMonth, date.dayOfMonth);
-
-  const endMs = new Date(startYear + numYears, 0, 1).getTime();
-  const startMs = new Date(startYear, 0, 1).getTime();
-
-  const repeat: RepeatKind = date.repeat ?? "none";
-  const customDays = Math.max(1, date.repeatEveryDays ?? 14);
-
-  if (repeat === "none") {
-    if (base.getTime() >= startMs && base.getTime() < endMs) {
-      pushOccurrence(out, base, startYear, monthWidth, true);
-    }
-    return out;
-  }
-
-  const cur = new Date(base);
-  let safety = 10000;
-  while (cur.getTime() < endMs && safety-- > 0) {
-    if (cur.getTime() >= startMs) {
-      pushOccurrence(out, cur, startYear, monthWidth, cur.getTime() === base.getTime());
-    }
-    if (repeat === "weekly") cur.setDate(cur.getDate() + 7);
-    else if (repeat === "monthly") cur.setMonth(cur.getMonth() + 1);
-    else if (repeat === "annual") cur.setFullYear(cur.getFullYear() + 1);
-    else if (repeat === "custom") cur.setDate(cur.getDate() + customDays);
-    else break;
-  }
-
-  if (!out.some((o) => o.isBase) && out.length > 0) {
-    out[0] = { ...out[0], isBase: true };
-  }
-  return out;
+export function generateDateOccurrences(date: DateMark, startYear: number, numYears: number, monthWidth: number): Occurrence[] {
+  const base = dayNumber(startYear, date.monthIdx, date.dayOfMonth);
+  return occurrences(date.monthIdx,date.dayOfMonth,date.repeat,date.repeatEveryDays,startYear,numYears)
+    .filter(day => day >= dayNumber(startYear,0,1))
+    .map(day => {
+      const parts = dayParts(day,startYear);
+      return {monthIdx:parts.month,dayOfMonth:parts.day,x:dateToX(parts.month,parts.day,startYear,monthWidth),isBase:day===base};
+    });
 }
 
 export function generateBirthdayOccurrences(

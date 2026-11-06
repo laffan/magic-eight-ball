@@ -33,6 +33,7 @@ function acceptsDrop(dragKind: DragKind, dropKind: DropKind): boolean {
 }
 
 export default function LayerSidebar() {
+  const values = useStore(s => s.values);
   const layers = useStore((s) => s.layers);
   const dates = useStore((s) => s.dates);
   const people = useStore((s) => s.people);
@@ -130,6 +131,7 @@ export default function LayerSidebar() {
   };
 
   const empty =
+    values.length === 0 &&
     layers.length === 0 &&
     dates.length === 0 &&
     people.length === 0 &&
@@ -146,6 +148,7 @@ export default function LayerSidebar() {
         <span>Layers</span>
       </header>
       <div className="sidebar-body">
+        {values.length > 0 && <section className="sidebar-section"><h4 className="sidebar-section-title">Values</h4><ul className="sidebar-list">{values.map(value => <li key={value.id}><button className={`value-sidebar-item ${selectedId === value.id ? "is-selected" : ""}`} onClick={() => selectAndScroll(value.id)}>{value.name}</button></li>)}</ul></section>}
         {empty && (
           <p className="sidebar-empty">
             No layers yet. Use the + button or click &amp; drag on the canvas to add one.

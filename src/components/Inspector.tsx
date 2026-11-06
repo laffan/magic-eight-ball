@@ -1,3 +1,4 @@
+import ValueFields, { EffectFields } from "./ValueFields";
 import {
   MONTHS_PER_YEAR,
   daysInMonth,
@@ -35,6 +36,7 @@ export default function Inspector() {
   const item = useStore<Item | null>((s) => {
     if (!s.selectedId) return null;
     return (
+      s.values.find(v => v.id === s.selectedId) ??
       s.layers.find((l) => l.id === s.selectedId) ??
       s.dates.find((d) => d.id === s.selectedId) ??
       s.people.find((p) => p.id === s.selectedId) ??
@@ -99,6 +101,7 @@ export default function Inspector() {
         <div className="inspector-body">
           {!item && <p className="inspector-empty">Nothing selected.</p>}
 
+          {item?.kind === "value" && <ValueFields item={item} />}
           {item?.kind === "layer" && (
             <div className="inspector-fields">
               <label className="field">
@@ -139,6 +142,7 @@ export default function Inspector() {
                 </label>
               )}
 
+              <EffectFields item={item} />
               <button className="danger-btn" onClick={() => removeItem(item.id)}>
                 Delete
               </button>
@@ -244,6 +248,7 @@ export default function Inspector() {
                 </label>
               )}
 
+              <EffectFields item={item} />
               <button className="danger-btn" onClick={() => removeItem(item.id)}>
                 Delete
               </button>
