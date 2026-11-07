@@ -45,3 +45,7 @@
   padding: 6px 10px;
   white-space: nowrap;
 }
+.value-contributors ul { list-style: none; padding: 0; margin: 8px 0; }
+.value-contributors li { margin-bottom: 12px; }
+.value-contributor-link { border: 0; padding: 0; background: transparent; color: #2865a0; text-decoration: underline; text-align: left; font: inherit; cursor: pointer; overflow-wrap: anywhere; }
+.value-contributor-detail { display: block; margin-top: 3px; font-size: 11px; line-height: 1.5; }

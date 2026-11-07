@@ -1,3 +1,4 @@
+import ValueContributors from "./ValueContributors";
 import MoneyInput from "./MoneyInput";
 import { useStore } from "../state/store";
 import type { Layer, DateMark, ValueLayer, RepeatKind } from "../types";
@@ -187,6 +188,7 @@ export default function ValueFields({ item }: { item: ValueLayer }) {
           onChange={(startingValue) => update(item.id, { startingValue })}
         />
       </label>
+      <ValueContributors valueId={item.id} />
       <button className="danger-btn" onClick={() => remove(item.id)}>
         Delete
       </button>
