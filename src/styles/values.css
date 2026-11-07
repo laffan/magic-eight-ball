@@ -34,3 +34,14 @@
 .value-sidebar-item.is-selected {
   background: #e0e9f0;
 }
+.value-tooltip {
+  position: fixed;
+  transform: translate(12px, -110%);
+  z-index: 100;
+  pointer-events: none;
+  background: #222;
+  color: white;
+  border-radius: 4px;
+  padding: 6px 10px;
+  white-space: nowrap;
+}

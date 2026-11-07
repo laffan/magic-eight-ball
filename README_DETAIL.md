@@ -62,3 +62,9 @@ last valid day and retain their original calendar anchor.
 
 Calculation regression tests (Node 22.18+):
 `node --experimental-strip-types --test tests/valueMath.test.mjs`.
+
+For repeating dates and spans, enable **Repeat Ends** to choose the last allowed
+occurrence start date (inclusive). The last span completes its full duration.
+Disabling the checkbox restores unlimited repetition within the timeline.
+Positive value-affecting date dots are green; negative ones are red. Hover over
+a value graph to see the date and USD balance at the nearest plotted point.

@@ -161,8 +161,9 @@ export default function DateMarker({ date, mode, yCenter, onDragEnd, onDragChang
         const style: React.CSSProperties = { left: occ.x, top: yCenter ?? "50%" };
         // For repeating dates each occurrence is a full dot (its own row, not a ghost).
         const variantClass = occ.isBase || repeats ? "is-base" : "is-repeat";
-        const dotStyle = date.color
-          ? ({ background: date.color, borderColor: date.color } as React.CSSProperties)
+        const dotColor = date.valueEffect?.amount ? (date.valueEffect.amount > 0 ? "#4a9d5b" : "#d23a3a") : date.color;
+        const dotStyle = dotColor
+          ? ({ background: dotColor, borderColor: dotColor } as React.CSSProperties)
           : undefined;
         return (
           <div

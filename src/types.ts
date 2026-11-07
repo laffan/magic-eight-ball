@@ -2,6 +2,7 @@ export type Layer = {
   id: string;
   kind: "layer";
   repeat?: RepeatKind;
+  repeatUntil?: string;
   repeatEveryDays?: number;
   label: string;
   startMonthIdx: number;
@@ -22,6 +23,7 @@ export type DateMark = {
   dayOfMonth: number;
   important: boolean;
   repeat?: RepeatKind;
+  repeatUntil?: string;
   repeatEveryDays?: number;
   valueEffect?: { valueId: string; amount: number };
   containerId?: string;

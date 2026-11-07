@@ -75,3 +75,33 @@ test("effects before the value starts are excluded", () => {
   assert.equal(points[0].amount, 100);
   assert.equal(points[3].amount, 103);
 });
+
+test("repeat end dates include the final start and exclude later occurrences", () => {
+  const starts = occurrences(0, 1, "weekly", 7, 2026, 1, "2026-01-08");
+  assert.equal(starts.length, 2);
+  const points = valueSeries(
+    value,
+    [{ ...layer, repeat: "weekly", repeatUntil: "2026-01-08" }],
+    [],
+    2026,
+    1,
+  );
+  assert.equal(points[14].amount, 114);
+  assert.equal(points[21].amount, 114);
+});
+test("date effects stop after the inclusive repeat end", () => {
+  const date = {
+    id: "d",
+    kind: "date",
+    label: "Deposit",
+    monthIdx: 0,
+    dayOfMonth: 1,
+    important: false,
+    repeat: "weekly",
+    repeatUntil: "2026-01-08",
+    valueEffect: { valueId: "v", amount: 10 },
+  };
+  const points = valueSeries(value, [], [date], 2026, 1);
+  assert.equal(points[8].amount, 120);
+  assert.equal(points[15].amount, 120);
+});

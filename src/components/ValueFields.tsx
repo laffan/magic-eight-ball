@@ -1,3 +1,4 @@
+import MoneyInput from "./MoneyInput";
 import { useStore } from "../state/store";
 import type { Layer, DateMark, ValueLayer, RepeatKind } from "../types";
 import { repeatAllowed, spanDays } from "../state/valueMath";
@@ -7,7 +8,9 @@ export function EffectFields({ item }: { item: Layer | DateMark }) {
     updateDate = useStore((s) => s.updateDate),
     year = useStore((s) => s.startYear);
   const update = (
-    patch: Partial<Pick<Layer, "repeat" | "repeatEveryDays" | "valueEffect">>,
+    patch: Partial<
+      Pick<Layer, "repeat" | "repeatEveryDays" | "repeatUntil" | "valueEffect">
+    >,
   ) =>
     item.kind === "layer"
       ? updateLayer(item.id, patch)
@@ -68,6 +71,37 @@ export function EffectFields({ item }: { item: Layer | DateMark }) {
           )}
         </>
       )}
+      {item.repeat && item.repeat !== "none" && (
+        <>
+          <label className="field-check">
+            <input
+              type="checkbox"
+              checked={item.repeatUntil !== undefined}
+              onChange={(e) =>
+                update({
+                  repeatUntil: e.target.checked
+                    ? new Date().toISOString().slice(0, 10)
+                    : undefined,
+                })
+              }
+            />
+            Repeat Ends
+          </label>
+          {item.repeatUntil !== undefined && (
+            <label className="field">
+              Repeat end date
+              <input
+                className="field-input"
+                type="date"
+                value={item.repeatUntil}
+                onChange={(e) => {
+                  if (e.target.value) update({ repeatUntil: e.target.value });
+                }}
+              />
+            </label>
+          )}
+        </>
+      )}
       <label className="field-check">
         <input
           type="checkbox"
@@ -108,18 +142,11 @@ export function EffectFields({ item }: { item: Layer | DateMark }) {
           </label>
           <label className="field">
             Amount (USD)
-            <input
-              className="field-input"
-              type="number"
-              step="0.01"
+            <MoneyInput
+              key={item.id}
               value={item.valueEffect.amount}
-              onChange={(e) =>
-                update({
-                  valueEffect: {
-                    ...item.valueEffect!,
-                    amount: Number(e.target.value),
-                  },
-                })
+              onChange={(amount) =>
+                update({ valueEffect: { ...item.valueEffect!, amount } })
               }
             />
           </label>
@@ -154,14 +181,10 @@ export default function ValueFields({ item }: { item: ValueLayer }) {
       </label>
       <label className="field">
         Starting value (USD)
-        <input
-          className="field-input"
-          type="number"
-          step="0.01"
+        <MoneyInput
+          key={item.id}
           value={item.startingValue}
-          onChange={(e) =>
-            update(item.id, { startingValue: Number(e.target.value) })
-          }
+          onChange={(startingValue) => update(item.id, { startingValue })}
         />
       </label>
       <button className="danger-btn" onClick={() => remove(item.id)}>

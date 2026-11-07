@@ -94,7 +94,7 @@ const nextId = (prefix: string) =>
 
 const currentYear = new Date().getFullYear();
 
-const SNAPSHOT_VERSION = 2;
+const SNAPSHOT_VERSION = 3;
 
 export const useStore = create<Store>()(
   persist(
@@ -256,7 +256,7 @@ export const useStore = create<Store>()(
           endMonthIdx: l.endMonthIdx,
           endDayOfMonth: l.endDayOfMonth ?? 28,
           containerId: l.containerId,
-          repeat: l.repeat, repeatEveryDays: l.repeatEveryDays, valueEffect: l.valueEffect,
+          repeat: l.repeat, repeatEveryDays: l.repeatEveryDays, repeatUntil: l.repeatUntil, valueEffect: l.valueEffect,
         }));
         set({
           startYear: data.startYear ?? new Date().getFullYear(),
@@ -273,7 +273,7 @@ export const useStore = create<Store>()(
     }),
     {
       name: "magic-eight-ball",
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         startYear: state.startYear,
@@ -371,7 +371,7 @@ export type BirthdayOccurrence = Occurrence & { age: number };
 
 export function generateDateOccurrences(date: DateMark, startYear: number, numYears: number, monthWidth: number): Occurrence[] {
   const base = dayNumber(startYear, date.monthIdx, date.dayOfMonth);
-  return occurrences(date.monthIdx,date.dayOfMonth,date.repeat,date.repeatEveryDays,startYear,numYears)
+  return occurrences(date.monthIdx,date.dayOfMonth,date.repeat,date.repeatEveryDays,startYear,numYears,date.repeatUntil)
     .filter(day => day >= dayNumber(startYear,0,1))
     .map(day => {
       const parts = dayParts(day,startYear);

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useStore, dateToX } from "../state/store";
 import { valueSeries, dayParts } from "../state/valueMath";
 export default function ValueGraphs({ top }: { top: number }) {
@@ -9,6 +9,12 @@ export default function ValueGraphs({ top }: { top: number }) {
     years = useStore((s) => s.numYears),
     width = useStore((s) => s.monthWidth),
     select = useStore((s) => s.setSelected);
+  const [hover, setHover] = useState<{
+    id: string;
+    text: string;
+    x: number;
+    y: number;
+  } | null>(null);
   const series = useMemo(
     () => values.map((v) => valueSeries(v, layers, dates, year, years)),
     [values, layers, dates, year, years],
@@ -46,6 +52,29 @@ export default function ValueGraphs({ top }: { top: number }) {
               height="90"
               role="img"
               aria-label={`${v.name} value over time`}
+              onMouseLeave={() => setHover(null)}
+              onMouseMove={(e) => {
+                const x =
+                  e.clientX - e.currentTarget.getBoundingClientRect().left;
+                const point = points.reduce<
+                  (typeof points)[number] | undefined
+                >((best, p) => {
+                  const d = dayParts(p.day, year),
+                    b = best && dayParts(best.day, year);
+                  return !b ||
+                    Math.abs(dateToX(d.month, d.day, year, width) - x) <
+                      Math.abs(dateToX(b.month, b.day, year, width) - x)
+                    ? p
+                    : best;
+                }, undefined);
+                if (point)
+                  setHover({
+                    id: v.id,
+                    x: e.clientX,
+                    y: e.clientY,
+                    text: `${new Date(point.day * 86400000).toLocaleDateString("en-US", { timeZone: "UTC", year: "numeric", month: "short", day: "numeric" })} · ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(point.amount)}`,
+                  });
+              }}
               onClick={() => select(v.id)}
             >
               <polyline
@@ -55,6 +84,15 @@ export default function ValueGraphs({ top }: { top: number }) {
                 strokeWidth="2"
               />
             </svg>
+            {hover?.id === v.id && (
+              <div
+                role="tooltip"
+                className="value-tooltip"
+                style={{ left: hover.x, top: hover.y }}
+              >
+                {hover.text}
+              </div>
+            )}
           </div>
         );
       })}

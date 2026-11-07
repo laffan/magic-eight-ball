@@ -24,11 +24,18 @@ export function occurrences(
   every = 14,
   year: number,
   years: number,
+  repeatUntil?: string,
 ) {
   const base = dayNumber(year, month, day),
     end = dayNumber(year + years, 0, 1);
   const out: number[] = [];
   for (let n = 0, current = base; current < end && n < 10000; n++) {
+    if (
+      n > 0 &&
+      repeatUntil &&
+      current > Date.parse(repeatUntil + "T00:00:00Z") / DAY
+    )
+      break;
     out.push(current);
     if (repeat === "none") break;
     if (repeat === "weekly" || repeat === "custom")
@@ -52,6 +59,7 @@ export function spanOccurrences(l: Layer, year: number, years: number) {
     Math.max(spanDays(l, year), l.repeatEveryDays ?? 14),
     year,
     years,
+    l.repeatUntil,
   );
 }
 export function valueSeries(
@@ -78,6 +86,7 @@ export function valueSeries(
         d.repeatEveryDays,
         year,
         years,
+        d.repeatUntil,
       ))
         add(day, d.valueEffect.amount);
   for (const l of layers)
