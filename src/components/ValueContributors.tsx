@@ -1,3 +1,4 @@
+import { valueColor } from "./valueColor";
 import { monthLabel, useStore } from "../state/store";
 
 const usd = new Intl.NumberFormat("en-US", {
@@ -34,7 +35,7 @@ export default function ValueContributors({ valueId }: { valueId: string }) {
         <span className="value-contributor-detail">
           {item.kind === "date" ? `Date · ${formatDate(item.monthIdx,item.dayOfMonth)}` :
             `Span · ${formatDate(item.startMonthIdx,item.startDayOfMonth)} – ${formatDate(item.endMonthIdx,item.endDayOfMonth)}`}
-          {` · ${usd.format(item.valueEffect?.amount ?? 0)}`}
+          {" · "}<span style={{color: valueColor(item.valueEffect?.amount ?? 0)}}>{usd.format(item.valueEffect?.amount ?? 0)}</span>
           {item.repeat && item.repeat !== "none" ? " · Repeating" : ""}
         </span>
       </li>)}</ul>}

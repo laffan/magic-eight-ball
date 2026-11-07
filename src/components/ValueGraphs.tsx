@@ -1,7 +1,9 @@
-import { useMemo, useState } from "react";
+import { valueColor } from "./valueColor";
+import { useMemo, useState, useId } from "react";
 import { useStore, dateToX } from "../state/store";
 import { valueSeries, dayParts } from "../state/valueMath";
 export default function ValueGraphs({ top }: { top: number }) {
+  const gradientPrefix = useId();
   const values = useStore((s) => s.values),
     layers = useStore((s) => s.layers),
     dates = useStore((s) => s.dates),
@@ -12,6 +14,7 @@ export default function ValueGraphs({ top }: { top: number }) {
   const [hover, setHover] = useState<{
     id: string;
     text: string;
+    amount: number;
     x: number;
     y: number;
   } | null>(null);
@@ -27,6 +30,9 @@ export default function ValueGraphs({ top }: { top: number }) {
           min = Math.min(...amounts),
           max = Math.max(...amounts),
           range = max - min || 1;
+        const lastAmount = points[points.length - 1]?.amount ?? v.startingValue;
+        const zeroOffset = Math.max(0, Math.min(1, (80 + min / range * 50) / 90));
+        const gradientId = `${gradientPrefix}-${i}`;
         const path = points
           .map((p) => {
             const d = dayParts(p.day, year);
@@ -40,7 +46,7 @@ export default function ValueGraphs({ top }: { top: number }) {
             className="value-graph"
             style={{ top: top + i * 110, width: years * 12 * width }}
           >
-            <button onClick={() => select(v.id)}>
+            <button onClick={() => select(v.id)} style={{color: valueColor(lastAmount)}}>
               {v.name} ·{" "}
               {new Intl.NumberFormat("en-US", {
                 style: "currency",
@@ -70,6 +76,7 @@ export default function ValueGraphs({ top }: { top: number }) {
                 if (point)
                   setHover({
                     id: v.id,
+                    amount: point.amount,
                     x: e.clientX,
                     y: e.clientY,
                     text: `${new Date(point.day * 86400000).toLocaleDateString("en-US", { timeZone: "UTC", year: "numeric", month: "short", day: "numeric" })} · ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(point.amount)}`,
@@ -77,10 +84,16 @@ export default function ValueGraphs({ top }: { top: number }) {
               }}
               onClick={() => select(v.id)}
             >
+              <defs>
+                <linearGradient id={gradientId} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="90">
+                  <stop offset={zeroOffset} stopColor="#4a9d5b" />
+                  <stop offset={zeroOffset} stopColor="#d23a3a" />
+                </linearGradient>
+              </defs>
               <polyline
                 points={path}
                 fill="none"
-                stroke="currentColor"
+                stroke={min < 0 && max > 0 ? `url(#${gradientId})` : valueColor(min < 0 ? min : max)}
                 strokeWidth="2"
               />
             </svg>
@@ -88,7 +101,7 @@ export default function ValueGraphs({ top }: { top: number }) {
               <div
                 role="tooltip"
                 className="value-tooltip"
-                style={{ left: hover.x, top: hover.y }}
+                style={{ left: hover.x, top: hover.y, color: valueColor(hover.amount) }}
               >
                 {hover.text}
               </div>

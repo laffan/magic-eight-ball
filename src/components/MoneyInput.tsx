@@ -1,3 +1,4 @@
+import { valueColor } from "./valueColor";
 import { useEffect, useState } from "react";
 
 export default function MoneyInput({
@@ -18,6 +19,7 @@ export default function MoneyInput({
   return (
     <input
       className="field-input"
+      style={{color: valueColor(value)}}
       type="text"
       inputMode="decimal"
       value={text}
